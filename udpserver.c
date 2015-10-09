@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-08 21:51:32
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-09 11:56:14
+* @Last Modified time: 2015-10-09 16:55:16
 *
 * File:         udpserver.c
 * Description:  Server C file
@@ -117,6 +117,7 @@ int main(int argc, char **argv) {
     readArguments();
     maxfdp1 = bind_sockets(&sock_head) + 1;
 
+    // print out the binding information
     for (sock = sock_head; sock != NULL; sock = sock->next) {
         printf("[ sockfd=%d\n", sock->sockfd);
         printf("\tIP address:     %s\n", Sock_ntop_host(sock->addr, sizeof(*(sock->addr))));
@@ -125,5 +126,8 @@ int main(int argc, char **argv) {
         printf("]\n");
     }
 
+    while (1) {
+        sleep(1);
+    }
     exit(0);
 }

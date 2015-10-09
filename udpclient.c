@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-09 09:49:37
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-09 12:07:12
+* @Last Modified time: 2015-10-09 16:56:15
 *
 * File:         udpclient.c
 * Description:  Client C file
@@ -195,17 +195,60 @@ int designateAddr(struct ifi_info *ifihead) {
  * --------------------------------------------------------------------------
  */
 int main(int argc, char **argv) {
-    int     local;
-    struct ifi_info *ifihead;
+    const int   on = 1;
+    int         local, sockfd;
+    socklen_t   len;
+    struct ifi_info         *ifihead;
+    struct sockaddr_in      servaddr, clientaddr;
+    struct sockaddr_storage ss;
 
     readArguments();
     ifihead = prifinfo_plus();
 
     local = designateAddr(ifihead);
+    free_ifi_info_plus(ifihead);
 
     printf("LOCAL=%d, IPserver=%s, IPclient=%s\n", local, IPserver, IPclient);
 
-    free_ifi_info_plus(ifihead);
+    sockfd = Socket(AF_INET, SOCK_DGRAM, 0);
+    //Setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &on, sizeof(on));
+    if (local)
+        Setsockopt(sockfd, SOL_SOCKET, SO_DONTROUTE, &on, sizeof(on));
+
+    bzero(&servaddr, sizeof(servaddr));
+    servaddr.sin_family = AF_INET;
+    servaddr.sin_port = htons(port);
+    Inet_pton(AF_INET, IPserver, &servaddr.sin_addr);
+
+    bzero(&clientaddr, sizeof(clientaddr));
+    servaddr.sin_family = AF_INET;
+    //servaddr.sin_port = htons(0);
+    Inet_pton(AF_INET, IPclient, &clientaddr.sin_addr);
+
+    // bind the clientaddr to socket
+    Bind(sockfd, (SA *)&clientaddr, sizeof(clientaddr));
+
+    len = sizeof(ss);
+    if (getsockname(sockfd, (SA *) &ss, &len) < 0) {
+        printf("getsockname error\n");
+        return (-1);
+    }
+
+    // output socket information
+    struct sockaddr_in *sockaddr = (struct sockaddr_in *)&ss;
+    printf("UDP Client Socket: %s:%d\n", inet_ntoa(sockaddr->sin_addr), sockaddr->sin_port);
+
+    Connect(sockfd, (SA *)&servaddr, sizeof(servaddr));
+
+    if (getpeername(sockfd, (SA *) &ss, &len) < 0) {
+        printf("getpeername error\n");
+        return (-1);
+    }
+
+    // output peer information
+    printf("UDP Server Socket: %s:%d\n", inet_ntoa(sockaddr->sin_addr), sockaddr->sin_port);
+
+
 
     exit(0);
 }
