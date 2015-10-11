@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-09 09:49:37
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-09 16:56:15
+* @Last Modified time: 2015-10-11 12:54:40
 *
 * File:         udpclient.c
 * Description:  Client C file
@@ -14,7 +14,7 @@ char    IPserver[IP_BUFFSIZE], IPclient[IP_BUFFSIZE];
 int     port = 0;
 char    filename[FILENAME_BUFFSIZE];
 int     max_winsize = 0;
-double  seed = 0.0;
+int     seed = 0;
 double  p = 0.0;
 int     mu = 0;
 
@@ -35,7 +35,7 @@ int     mu = 0;
  *    Line 2: <INTEGER>     -> int port
  *    Line 3: <STRING>      -> char filename[FILENAME_BUFFSIZE]
  *    Line 4: <INTEGER>     -> int max_winsize
- *    Line 5: <DOUBLE>      -> double seed
+ *    Line 5: <INTEGER>     -> int seed
  *    Line 6: <DOUBLE>      -> double p
  *    Line 7: <INTEGER>     -> int mu
  * --------------------------------------------------------------------------
@@ -52,7 +52,7 @@ void readArguments() {
     fscanf(fp, "%d\n", &port);
     Fgets(filename, FILENAME_BUFFSIZE, fp);
     fscanf(fp, "%d", &max_winsize);
-    fscanf(fp, "%lf", &seed);
+    fscanf(fp, "%%d", &seed);
     fscanf(fp, "%lf", &p);
     fscanf(fp, "%d", &mu);
 
@@ -62,7 +62,7 @@ void readArguments() {
     for (i = 0; i < strlen(filename); i++)
         if (filename[i] < 32) filename[i] = 0;
 
-    printf("[client.in] address=%s:%d, filename=%s, max_winsize=%d, seed=%lf, p=%lf, mu=%d\n", IPserver, port, filename, max_winsize, seed, p, mu);
+    printf("[client.in] address=%s:%d, filename=%s, max_winsize=%d, seed=%d, p=%lf, mu=%d\n", IPserver, port, filename, max_winsize, seed, p, mu);
 }
 
 /* --------------------------------------------------------------------------
@@ -228,6 +228,7 @@ int main(int argc, char **argv) {
     // bind the clientaddr to socket
     Bind(sockfd, (SA *)&clientaddr, sizeof(clientaddr));
 
+    // getsockname of client part
     len = sizeof(ss);
     if (getsockname(sockfd, (SA *) &ss, &len) < 0) {
         printf("getsockname error\n");
@@ -238,8 +239,10 @@ int main(int argc, char **argv) {
     struct sockaddr_in *sockaddr = (struct sockaddr_in *)&ss;
     printf("UDP Client Socket: %s:%d\n", inet_ntoa(sockaddr->sin_addr), sockaddr->sin_port);
 
+    // connect
     Connect(sockfd, (SA *)&servaddr, sizeof(servaddr));
 
+    // getpeername of server part
     if (getpeername(sockfd, (SA *) &ss, &len) < 0) {
         printf("getpeername error\n");
         return (-1);
@@ -248,7 +251,7 @@ int main(int argc, char **argv) {
     // output peer information
     printf("UDP Server Socket: %s:%d\n", inet_ntoa(sockaddr->sin_addr), sockaddr->sin_port);
 
-
+    Dg_cli(sockfd, (SA *)&servaddr, sizeof(servaddr));
 
     exit(0);
 }

@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-08 21:51:32
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-09 16:55:16
+* @Last Modified time: 2015-10-11 13:43:24
 *
 * File:         udpserver.c
 * Description:  Server C file
@@ -111,7 +111,9 @@ int bind_sockets(struct socket_info **sock_list) {
  * --------------------------------------------------------------------------
  */
 int main(int argc, char **argv) {
-    int maxfdp1 = -1;
+    char        buff[DATAGRAM_PAYLOAD];
+    int         maxfdp1 = -1, r, len;
+    fd_set      rset;
     struct socket_info *sock_head = NULL, *sock = NULL;
 
     readArguments();
@@ -126,8 +128,36 @@ int main(int argc, char **argv) {
         printf("]\n");
     }
 
-    while (1) {
-        sleep(1);
+    FD_ZERO(&rset);
+
+    for ( ; ; ) {
+        // use select() to monitor all listening sockets
+        for (sock = sock_head; sock != NULL; sock = sock->next)
+            FD_SET(sock->sockfd, &rset);
+
+        // need to use select rather than Select provided by Steven
+        // cos Steven's Select doesn't handle EINTR
+        r = select(maxfdp1, &rset, NULL, NULL, NULL);
+
+        // slow system call select() may be interrupted
+        if (r == -1 && errno == EINTR)
+            continue;
+
+        // handle the readable socket
+        for (sock = sock_head; sock != NULL; sock = sock->next) {
+            if (FD_ISSET(sock->sockfd, &rset)) {
+                // TODO: need to fork
+                // for testing, call recvfrom and printout the message
+                bzero(buff, DATAGRAM_PAYLOAD);
+                len = sizeof(*sock->addr);
+                Recvfrom(sock->sockfd, buff, DATAGRAM_PAYLOAD, 0, sock->addr, &len);
+
+                printf("server receive packet: %s\n", (buff+DATAGRAM_HEADERSIZE));
+                continue;
+            }
+        }
+
     }
+
     exit(0);
 }
