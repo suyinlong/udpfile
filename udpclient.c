@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-09 09:49:37
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-11 12:54:40
+* @Last Modified time: 2015-10-11 17:31:05
 *
 * File:         udpclient.c
 * Description:  Client C file
@@ -52,7 +52,7 @@ void readArguments() {
     fscanf(fp, "%d\n", &port);
     Fgets(filename, FILENAME_BUFFSIZE, fp);
     fscanf(fp, "%d", &max_winsize);
-    fscanf(fp, "%%d", &seed);
+    fscanf(fp, "%d", &seed);
     fscanf(fp, "%lf", &p);
     fscanf(fp, "%d", &mu);
 
@@ -143,7 +143,7 @@ int designateAddr(struct ifi_info *ifihead) {
 
     bzero(IPclient, IP_BUFFSIZE);
 
-    // check if loopback
+    // check if local (loopback)
     for (ifi = ifihead; ifi != NULL; ifi = ifi->ifi_next) {
         if ( ((addr = ifi->ifi_addr) != NULL) && (strcmp(IPserver, Sock_ntop_host(addr, sizeof(*addr))) == 0) ) {
             strcpy(IPserver, "127.0.0.1");
@@ -152,7 +152,7 @@ int designateAddr(struct ifi_info *ifihead) {
         }
     }
 
-    // check if local (subnet)
+    // check if local (subnets)
     for (ifi = ifihead; ifi != NULL; ifi = ifi->ifi_next) {
         if ( ((addr = ifi->ifi_addr) != NULL) && ((ntmaddr = ifi->ifi_ntmaddr) != NULL)) {
             ntm = inet_addr(Sock_ntop_host(ntmaddr, sizeof(*ntmaddr)));
@@ -190,6 +190,7 @@ int designateAddr(struct ifi_info *ifihead) {
  *  @see    : function#readArguments,
  *            function#prifinfo_plus,
  *            function#designateAddr
+ *            function#Dg_cli
  *
  *  Server entry function
  * --------------------------------------------------------------------------
@@ -221,8 +222,8 @@ int main(int argc, char **argv) {
     Inet_pton(AF_INET, IPserver, &servaddr.sin_addr);
 
     bzero(&clientaddr, sizeof(clientaddr));
-    servaddr.sin_family = AF_INET;
-    //servaddr.sin_port = htons(0);
+    clientaddr.sin_family = AF_INET;
+    //clientaddr.sin_port = htons(0);
     Inet_pton(AF_INET, IPclient, &clientaddr.sin_addr);
 
     // bind the clientaddr to socket
@@ -251,7 +252,7 @@ int main(int argc, char **argv) {
     // output peer information
     printf("UDP Server Socket: %s:%d\n", inet_ntoa(sockaddr->sin_addr), sockaddr->sin_port);
 
-    Dg_cli(sockfd, (SA *)&servaddr, sizeof(servaddr));
+    Dg_cli(sockfd);
 
     exit(0);
 }

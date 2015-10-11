@@ -48,6 +48,8 @@ struct filedatagram {
 extern struct ifi_info *Get_ifi_info_plus(int family, int doaliases);
 extern        void      free_ifi_info_plus(struct ifi_info *ifihead);
 
+void Dg_recvpacket(int, struct sockaddr *, socklen_t *, struct filedatagram *);
+
 void Dg_writepacket(int, const struct filedatagram *);
 void Dg_readpacket(int, struct filedatagram *);
 
@@ -61,6 +63,8 @@ char *getDGData(struct filedatagram);
 char *getData(char *);
 
 
-void Dg_cli(int, const SA *, socklen_t);
+void Dg_cli(int);
+
+void Dg_serv(int, struct socket_info *, struct sockaddr *, struct sockaddr *, char *);
 
 #endif

@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-08 21:51:32
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-11 13:43:24
+* @Last Modified time: 2015-10-11 14:45:55
 *
 * File:         udpserver.c
 * Description:  Server C file
@@ -98,6 +98,26 @@ int bind_sockets(struct socket_info **sock_list) {
 }
 
 /* --------------------------------------------------------------------------
+ *  sig_chld
+ *
+ *  SIGCHLD Signal Handler
+ *
+ *  @param  : int signo
+ *  @return : void
+ *
+ *  Catch SIGCHLD signal and terminate all the zombie children
+ * --------------------------------------------------------------------------
+ */
+void sig_chld(int signo) {
+    pid_t   pid;
+    int     stat;
+
+    while ((pid = waitpid(-1, &stat, WNOHANG)) > 0)
+        printf("[Server]: Child %d terminated.\n", pid);
+    return;
+}
+
+/* --------------------------------------------------------------------------
  *  main
  *
  *  Entry function
@@ -113,8 +133,11 @@ int bind_sockets(struct socket_info **sock_list) {
 int main(int argc, char **argv) {
     char        buff[DATAGRAM_PAYLOAD];
     int         maxfdp1 = -1, r, len;
+    pid_t       childpid;
     fd_set      rset;
-    struct socket_info *sock_head = NULL, *sock = NULL;
+    struct socket_info  *sock_head = NULL, *sock = NULL;
+    struct sockaddr     clientfrom;
+    struct filedatagram datagram;
 
     readArguments();
     maxfdp1 = bind_sockets(&sock_head) + 1;
@@ -128,8 +151,11 @@ int main(int argc, char **argv) {
         printf("]\n");
     }
 
-    FD_ZERO(&rset);
+    // use function sig_chld as SIGCHLD handler, function sig_int as SIGINT handler
+    Signal(SIGCHLD, sig_chld);
 
+    FD_ZERO(&rset);
+    len = sizeof(clientfrom);
     for ( ; ; ) {
         // use select() to monitor all listening sockets
         for (sock = sock_head; sock != NULL; sock = sock->next)
@@ -146,13 +172,33 @@ int main(int argc, char **argv) {
         // handle the readable socket
         for (sock = sock_head; sock != NULL; sock = sock->next) {
             if (FD_ISSET(sock->sockfd, &rset)) {
-                // TODO: need to fork
-                // for testing, call recvfrom and printout the message
-                bzero(buff, DATAGRAM_PAYLOAD);
-                len = sizeof(*sock->addr);
-                Recvfrom(sock->sockfd, buff, DATAGRAM_PAYLOAD, 0, sock->addr, &len);
 
-                printf("server receive packet: %s\n", (buff+DATAGRAM_HEADERSIZE));
+                // fill the packet datagram
+                bzero(buff, DATAGRAM_PAYLOAD);
+                Dg_recvpacket(sock->sockfd, &clientfrom, &len, &datagram);
+
+                printf("server receive packet: %s\n", datagram.data);
+
+                // check the packet contains a filename
+                if (datagram.flag.fln == 1) {
+                    struct sockaddr_in *clientaddr_in = (struct sockaddr_in *)&clientfrom;
+                    printf("[Server]: Received a valid file request \"%s\" from client %s:%d to server %s:%d\n",
+                        datagram.data,
+                        Sock_ntop_host(&clientfrom, len), clientaddr_in->sin_port,
+                        Sock_ntop_host(sock->addr, sizeof(*(sock->addr))), port);
+                    // TODO: need to fork
+                    childpid = Fork();
+                    if (childpid == 0) {
+                        // this is child process part
+                        Dg_serv(sock->sockfd, sock_head, sock->addr, &clientfrom, datagram.data);
+                        exit(0);
+                    } else {
+                        // this is parent process part
+
+                    }
+                } else {
+                    printf("[Server]: Received an invalid packet (no filename requested).\n");
+                }
                 continue;
             }
         }
