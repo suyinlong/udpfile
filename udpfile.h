@@ -54,16 +54,6 @@ void Dg_recvpacket(int, struct sockaddr *, socklen_t *, struct filedatagram *);
 void Dg_writepacket(int, const struct filedatagram *);
 void Dg_readpacket(int, struct filedatagram *);
 
-unsigned int getDGSequence(struct filedatagram);
-unsigned int getSequence(char *);
-
-DATAGRAM_STATUS getDGFlag(struct filedatagram);
-DATAGRAM_STATUS getFlag(char *);
-
-char *getDGData(struct filedatagram);
-char *getData(char *);
-
-
 void Dg_cli(int);
 
 void Dg_serv(int, struct socket_info *, struct sockaddr *, struct sockaddr *, char *);

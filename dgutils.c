@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-09 20:43:25
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-11 16:51:00
+* @Last Modified time: 2015-10-12 10:20:53
 *
 * File:         dgutils.c
 * Description:  Datagram Utils C file
@@ -91,28 +91,3 @@ void Dg_readpacket(int sockfd, struct filedatagram *datagram) {
     size_t n = Read(sockfd, buff, DATAGRAM_PAYLOAD);
     memcpy(datagram, buff, n);
 }
-
-unsigned int getDGSequence(struct filedatagram dg) {
-    return dg.seq;
-}
-
-unsigned int getSequence(char *ptr) {
-    return *((unsigned int *)ptr);
-}
-
-DATAGRAM_STATUS getDGFlag(struct filedatagram dg) {
-    return dg.flag;
-}
-
-DATAGRAM_STATUS getFlag(char *ptr) {
-    return *((DATAGRAM_STATUS *)(ptr + sizeof(unsigned int)));
-}
-
-char *getDGData(struct filedatagram dg) {
-    return dg.data;
-}
-
-char *getData(char *ptr) {
-    return (ptr + sizeof(unsigned int) + sizeof(DATAGRAM_STATUS));
-}
-
