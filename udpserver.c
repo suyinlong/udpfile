@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-08 21:51:32
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-11 14:45:55
+* @Last Modified time: 2015-10-12 09:27:35
 *
 * File:         udpserver.c
 * Description:  Server C file
@@ -33,6 +33,7 @@ void readArguments() {
     fscanf(fp, "%d", &port);
     fscanf(fp, "%d", &max_winsize);
     printf("[server.in] port=%d, max_winsize=%d\n", port, max_winsize);
+    Fclose(fp);
 }
 
 /* --------------------------------------------------------------------------
@@ -176,8 +177,6 @@ int main(int argc, char **argv) {
                 // fill the packet datagram
                 bzero(buff, DATAGRAM_PAYLOAD);
                 Dg_recvpacket(sock->sockfd, &clientfrom, &len, &datagram);
-
-                printf("server receive packet: %s\n", datagram.data);
 
                 // check the packet contains a filename
                 if (datagram.flag.fln == 1) {

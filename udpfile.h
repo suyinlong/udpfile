@@ -29,12 +29,13 @@ typedef struct {
 } DATAGRAM_STATUS;
 
 #define DATAGRAM_PAYLOAD    512
-#define DATAGRAM_HEADERSIZE (3 * sizeof(unsigned int) + sizeof(DATAGRAM_STATUS))
+#define DATAGRAM_HEADERSIZE (4 * sizeof(unsigned int) + sizeof(DATAGRAM_STATUS))
 #define DATAGRAM_DATASIZE   (DATAGRAM_PAYLOAD - DATAGRAM_HEADERSIZE)
 
 struct filedatagram {
     unsigned int    seq;
     unsigned int    timestamp;
+    unsigned int    win;
     unsigned int    datalength;
     DATAGRAM_STATUS flag;
     char            data[DATAGRAM_DATASIZE];

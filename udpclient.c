@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-09 09:49:37
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-11 17:31:05
+* @Last Modified time: 2015-10-12 09:28:44
 *
 * File:         udpclient.c
 * Description:  Client C file
@@ -63,6 +63,7 @@ void readArguments() {
         if (filename[i] < 32) filename[i] = 0;
 
     printf("[client.in] address=%s:%d, filename=%s, max_winsize=%d, seed=%d, p=%lf, mu=%d\n", IPserver, port, filename, max_winsize, seed, p, mu);
+    Fclose(fp);
 }
 
 /* --------------------------------------------------------------------------
