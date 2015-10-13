@@ -29,14 +29,14 @@ typedef struct {
 } DATAGRAM_STATUS;
 
 #define DATAGRAM_PAYLOAD    512
-#define DATAGRAM_HEADERSIZE (4 * sizeof(unsigned int) + sizeof(DATAGRAM_STATUS))
+#define DATAGRAM_HEADERSIZE (2 * sizeof(uint32_t) + 2 * sizeof(uint16_t) + sizeof(DATAGRAM_STATUS))
 #define DATAGRAM_DATASIZE   (DATAGRAM_PAYLOAD - DATAGRAM_HEADERSIZE)
 
 struct filedatagram {
-    unsigned int    seq;
-    unsigned int    timestamp;
-    unsigned int    win;
-    unsigned int    datalength;
+    uint32_t    seq;
+    uint32_t    ts;
+    uint16_t    wnd;
+    uint16_t    len;
     DATAGRAM_STATUS flag;
     char            data[DATAGRAM_DATASIZE];
 };
@@ -44,6 +44,10 @@ struct filedatagram {
 // Buffer size definition
 #define IP_BUFFSIZE         20
 #define FILENAME_BUFFSIZE   255
+
+// Congestion Control
+#define CC_IWND     1   // default iwnd (initial window)
+#define CC_SSTHRESH -1  // default ssthresh, -1 indicate that ssthresh = awnd
 
 // function headers
 extern struct ifi_info *Get_ifi_info_plus(int family, int doaliases);

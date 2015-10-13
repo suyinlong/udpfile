@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-09 20:43:25
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-12 10:20:53
+* @Last Modified time: 2015-10-13 10:10:58
 *
 * File:         dgutils.c
 * Description:  Datagram Utils C file
@@ -25,7 +25,7 @@
  * --------------------------------------------------------------------------
  */
 void Dg_sendpacket(int sockfd, struct sockaddr *to, socklen_t addrlen, const struct filedatagram *datagram) {
-    size_t n = DATAGRAM_HEADERSIZE + datagram->datalength;
+    size_t n = DATAGRAM_HEADERSIZE + datagram->len;
 
     Sendto(sockfd, (char *)datagram, n, 0, to, addrlen);
 }
@@ -66,7 +66,7 @@ void Dg_recvpacket(int sockfd, struct sockaddr *from, socklen_t *addrlen, struct
  * --------------------------------------------------------------------------
  */
 void Dg_writepacket(int sockfd, const struct filedatagram *datagram) {
-    size_t n = DATAGRAM_HEADERSIZE + datagram->datalength;
+    size_t n = DATAGRAM_HEADERSIZE + datagram->len;
 
     Write(sockfd, (char *)datagram, n);
 }

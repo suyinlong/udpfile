@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 11:50:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-11 17:44:54
+* @Last Modified time: 2015-10-13 10:12:48
 *
 * File:         dgcli.c
 * Description:  Datagram Client C file
@@ -31,7 +31,7 @@ extern int      mu;
  * --------------------------------------------------------------------------
  */
 void Dg_cli_write(int sockfd, struct filedatagram *datagram) {
-    datagram->timestamp = 0; // modify this number and adjust this line just before the packet send into window
+    datagram->ts = 0; // modify this number and adjust this line just before the packet send into window
 
     // TODO: sender window buffer
     // TODO: retransmission
@@ -86,17 +86,17 @@ void Dg_cli_file(int sockfd) {
         Dg_cli_read(sockfd, &FD);
 
         seq = FD.seq;
-        timestamp = FD.timestamp;
+        timestamp = FD.ts;
         eof = FD.flag.eof;
 
         // TODO: save to buffer
         // TODO: use thread to print out the content
-        for (i = 0; i < FD.datalength; i++)
+        for (i = 0; i < FD.len; i++)
             printf("%c", FD.data[i]);
 
         bzero(&FD, DATAGRAM_PAYLOAD);
         FD.seq = seq;
-        FD.timestamp = timestamp;
+        FD.ts = timestamp;
         FD.flag.ack = 1;
 
         Dg_cli_write(sockfd, &FD);
@@ -131,7 +131,7 @@ void Dg_cli(int sockfd) {
     // create a datagram packet with filename
     bzero(&FD, sizeof(FD));
     FD.flag.fln = 1;                    // indicate this is a datagram including filename
-    FD.datalength = strlen(filename);   // indicate the filename length
+    FD.len = strlen(filename);   // indicate the filename length
     strcpy(FD.data, filename);          // fill the data part
 
     // send the file request
@@ -159,7 +159,7 @@ void Dg_cli(int sockfd) {
     bzero(&FD, sizeof(FD));
     FD.flag.ack = 1;
     FD.flag.pot = 1;
-    FD.datalength = 0;
+    FD.len = 0;
 
     // send the ACK
     Dg_cli_write(sockfd, &FD);

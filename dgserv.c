@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-11 17:47:50
+* @Last Modified time: 2015-10-13 12:56:06
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -44,7 +44,7 @@ void Dg_serv_read(int sockfd, struct filedatagram *datagram) {
  * --------------------------------------------------------------------------
  */
 void Dg_serv_write(int sockfd, struct filedatagram *datagram) {
-    datagram->timestamp = 0; // modify this number and adjust this line just before the packet send into window
+    datagram->ts = 0; // modify this number and adjust this line just before the packet send into window
 
     // TODO: sender window buffer
     // TODO: retransmission
@@ -71,7 +71,7 @@ void Dg_serv_write(int sockfd, struct filedatagram *datagram) {
  * --------------------------------------------------------------------------
  */
 void Dg_serv_send(int sockfd, const SA* cliaddr, socklen_t clilen, struct filedatagram *datagram) {
-    datagram->timestamp = 0; // modify this number and adjust this line just before the packet send into window
+    datagram->ts = 0; // modify this number and adjust this line just before the packet send into window
 
     // TODO: sender window buffer
     // TODO: retransmission
@@ -154,15 +154,17 @@ void Dg_serv_file(int sockfd, char *filename) {
         c_seq = seq;
         bzero(&FD, DATAGRAM_PAYLOAD);
         FD.seq = c_seq;
-        FD.datalength = fread(FD.data, sizeof(char), DATAGRAM_DATASIZE, fp);
+        FD.len = fread(FD.data, sizeof(char), DATAGRAM_DATASIZE, fp);
         if (feof(fp))
             FD.flag.eof = 1;
 
         Dg_serv_write(sockfd, &FD);
         Dg_serv_read(sockfd, &FD);
 
-        if (FD.seq == c_seq && FD.flag.ack == 1)
+        if (FD.seq == c_seq && FD.flag.ack == 1) {
             printf("[Server Child #%d]: Received ACK #%d.\n", pid, c_seq);
+            //cc_ack(FD.seq, FD.ts, FD.wnd);
+        }
         else
             printf("[Server Child #%d]: Error.\n", pid);
     }
@@ -236,7 +238,7 @@ void Dg_serv(int listeningsockfd, struct socket_info *sock_head, struct sockaddr
     bzero(&FD, sizeof(FD));
     FD.flag.pot = 1;    // indicate this is a packet with port number
     sprintf(s_port, "%d", sockaddr->sin_port);
-    FD.datalength = strlen(s_port);
+    FD.len = strlen(s_port);
     strcpy(FD.data, s_port);
 
     // send the new private port number via listening socket
