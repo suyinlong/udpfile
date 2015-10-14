@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 11:50:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-13 10:12:48
+* @Last Modified time: 2015-10-14 17:01:26
 *
 * File:         dgcli.c
 * Description:  Datagram Client C file
@@ -16,6 +16,8 @@ extern int      max_winsize;
 extern int      seed;
 extern double   p;
 extern int      mu;
+
+uint32_t        cli_seq = 0;
 
 /* --------------------------------------------------------------------------
  *  Dg_cli_write
@@ -31,6 +33,7 @@ extern int      mu;
  * --------------------------------------------------------------------------
  */
 void Dg_cli_write(int sockfd, struct filedatagram *datagram) {
+    datagram->seq = cli_seq++;
     datagram->ts = 0; // modify this number and adjust this line just before the packet send into window
 
     // TODO: sender window buffer
@@ -82,6 +85,7 @@ void Dg_cli_file(int sockfd) {
     int i, seq, timestamp, eof = 0;
     struct filedatagram FD;
 
+    cli_seq = 2;
     for ( ; ; ) {
         Dg_cli_read(sockfd, &FD);
 
@@ -95,9 +99,9 @@ void Dg_cli_file(int sockfd) {
             printf("%c", FD.data[i]);
 
         bzero(&FD, DATAGRAM_PAYLOAD);
-        FD.seq = seq;
+        FD.seq = cli_seq;
+        FD.ack = seq + 1;
         FD.ts = timestamp;
-        FD.flag.ack = 1;
 
         Dg_cli_write(sockfd, &FD);
 
@@ -130,9 +134,10 @@ void Dg_cli(int sockfd) {
 
     // create a datagram packet with filename
     bzero(&FD, sizeof(FD));
-    FD.flag.fln = 1;                    // indicate this is a datagram including filename
-    FD.len = strlen(filename);   // indicate the filename length
-    strcpy(FD.data, filename);          // fill the data part
+    FD.seq = 0;                 // seq = 0
+    FD.flag.fln = 1;            // indicate this is a datagram including filename
+    FD.len = strlen(filename);  // indicate the filename length
+    strcpy(FD.data, filename);  // fill the data part
 
     // send the file request
     Dg_cli_write(sockfd, &FD);
@@ -140,7 +145,7 @@ void Dg_cli(int sockfd) {
     // receive the port number
     Dg_cli_read(sockfd, &FD);
 
-    if (FD.flag.pot != 1) {
+    if (FD.flag.pot != 1 || FD.ack != 1) {
         printf("[Client]: Received an invalid packet (no port number).\n");
     } else {
         new_port = atoi(FD.data);
@@ -157,7 +162,8 @@ void Dg_cli(int sockfd) {
 
     // create a datagram packet with ACK (port number)
     bzero(&FD, sizeof(FD));
-    FD.flag.ack = 1;
+    FD.seq = 1;
+    FD.ack = 1;
     FD.flag.pot = 1;
     FD.len = 0;
 

@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-13 12:56:06
+* @Last Modified time: 2015-10-14 16:45:33
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -12,6 +12,8 @@
 
 pid_t   pid;
 char    IPserver[IP_BUFFSIZE], IPclient[IP_BUFFSIZE];
+
+uint32_t    serv_seq = 0;
 
 /* --------------------------------------------------------------------------
  *  Dg_cli_read
@@ -145,13 +147,13 @@ int checkLocal(struct socket_info *sock_head, struct sockaddr *server, struct so
  */
 void Dg_serv_file(int sockfd, char *filename) {
     FILE *fp;
-    unsigned int seq = 0, c_seq;
+    uint32_t c_seq;
     struct filedatagram FD;
 
     fp = Fopen(filename, "r+t");
     while (!feof(fp)) {
-        seq++;
-        c_seq = seq;
+        serv_seq++;
+        c_seq = serv_seq;
         bzero(&FD, DATAGRAM_PAYLOAD);
         FD.seq = c_seq;
         FD.len = fread(FD.data, sizeof(char), DATAGRAM_DATASIZE, fp);
@@ -161,7 +163,7 @@ void Dg_serv_file(int sockfd, char *filename) {
         Dg_serv_write(sockfd, &FD);
         Dg_serv_read(sockfd, &FD);
 
-        if (FD.seq == c_seq && FD.flag.ack == 1) {
+        if (FD.ack == c_seq + 1) {
             printf("[Server Child #%d]: Received ACK #%d.\n", pid, c_seq);
             //cc_ack(FD.seq, FD.ts, FD.wnd);
         }
@@ -236,6 +238,8 @@ void Dg_serv(int listeningsockfd, struct socket_info *sock_head, struct sockaddr
 
     // create a datagram packet with port number
     bzero(&FD, sizeof(FD));
+    FD.seq = serv_seq;
+    FD.ack = 1;
     FD.flag.pot = 1;    // indicate this is a packet with port number
     sprintf(s_port, "%d", sockaddr->sin_port);
     FD.len = strlen(s_port);
@@ -247,7 +251,7 @@ void Dg_serv(int listeningsockfd, struct socket_info *sock_head, struct sockaddr
     // should receive ACK from connection socket
     Dg_serv_read(sockfd, &FD);
 
-    if (FD.flag.ack == 1 && FD.flag.pot == 1) {
+    if (FD.ack == 1 && FD.flag.pot == 1) {
         printf("[Server Child #%d]: Received ACK. Private connection established.\n", pid);
         close(listeningsockfd);
     } else {

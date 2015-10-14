@@ -18,22 +18,23 @@ struct socket_info {
 typedef unsigned char BITFIELD8;
 typedef struct {
     /* common flags */
-    BITFIELD8   ack : 1; /* ack flag */
     BITFIELD8   eof : 1; /* eof flag */
     BITFIELD8   fln : 1; /* filename flag */
     BITFIELD8   pot : 1; /* port flag */
-    BITFIELD8   r04 : 1;
+    BITFIELD8   wnd : 1; /* window update flag */
+    BITFIELD8   pob : 1; /* window probe flag */
     BITFIELD8   r05 : 1;
     BITFIELD8   r06 : 1;
     BITFIELD8   r07 : 1;
 } DATAGRAM_STATUS;
 
 #define DATAGRAM_PAYLOAD    512
-#define DATAGRAM_HEADERSIZE (2 * sizeof(uint32_t) + 2 * sizeof(uint16_t) + sizeof(DATAGRAM_STATUS))
+#define DATAGRAM_HEADERSIZE (3 * sizeof(uint32_t) + 2 * sizeof(uint16_t) + sizeof(DATAGRAM_STATUS))
 #define DATAGRAM_DATASIZE   (DATAGRAM_PAYLOAD - DATAGRAM_HEADERSIZE)
 
 struct filedatagram {
     uint32_t    seq;
+    uint32_t    ack;
     uint32_t    ts;
     uint16_t    wnd;
     uint16_t    len;
