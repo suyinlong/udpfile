@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-08 21:51:32
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-14 17:01:38
+* @Last Modified time: 2015-10-14 22:32:16
 *
 * File:         udpserver.c
 * Description:  Server C file
@@ -12,6 +12,7 @@
 
 int port = 0;
 int max_winsize = 0;
+struct process_info *proc_head = NULL, *proc = NULL;
 
 /* --------------------------------------------------------------------------
  *  readArguments
@@ -112,10 +113,51 @@ int bind_sockets(struct socket_info **sock_list) {
 void sig_chld(int signo) {
     pid_t   pid;
     int     stat;
+    struct process_info *proc_prev = NULL;
 
-    while ((pid = waitpid(-1, &stat, WNOHANG)) > 0)
+    while ((pid = waitpid(-1, &stat, WNOHANG)) > 0) {
+        // remove the entry from process_info
+        proc = proc_head;
+        while (proc != NULL) {
+            if (proc->pid == pid) {
+                if (proc == proc_head)
+                    proc_head = proc->next;
+                else
+                    proc_prev->next = proc->next;
+                free(proc);
+                break;
+            }
+            proc_prev = proc;
+            proc = proc->next;
+        }
+
         printf("[Server]: Child %d terminated.\n", pid);
+    }
     return;
+}
+
+/* --------------------------------------------------------------------------
+ *  checkProcess
+ *
+ *  Request check function
+ *
+ *  @param  : char  *filename
+ *            char  *address
+ *            int   port
+ *  @return : int
+ *
+ *  Check if the file request is already handled by a child process
+ * --------------------------------------------------------------------------
+ */
+int checkProcess(char *filename, char *address, int port) {
+    proc = proc_head;
+
+    while (proc != NULL) {
+        if ((strcmp(proc->filename, filename) == 0) && (strcmp(proc->address, address) == 0) && proc->port == port)
+            return proc->pid;
+        proc = proc->next;
+    }
+    return 0;
 }
 
 /* --------------------------------------------------------------------------
@@ -132,7 +174,6 @@ void sig_chld(int signo) {
  * --------------------------------------------------------------------------
  */
 int main(int argc, char **argv) {
-    char        buff[DATAGRAM_PAYLOAD];
     int         maxfdp1 = -1, r, len;
     pid_t       childpid;
     fd_set      rset;
@@ -175,17 +216,24 @@ int main(int argc, char **argv) {
             if (FD_ISSET(sock->sockfd, &rset)) {
 
                 // fill the packet datagram
-                bzero(buff, DATAGRAM_PAYLOAD);
+                bzero(&datagram, sizeof(datagram));
                 Dg_recvpacket(sock->sockfd, &clientfrom, &len, &datagram);
 
                 // check the packet contains a filename
                 if (datagram.flag.fln == 1) {
                     struct sockaddr_in *clientaddr_in = (struct sockaddr_in *)&clientfrom;
-                    printf("[Server]: Received a valid file request \"%s\" from client %s:%d to server %s:%d\n",
+                    printf("[Server]: Received a valid file request \x1B[0;34m\"%s\"\x1B[0;0m from client \x1B[0;33m%s:%d\x1B[0;0m to server \x1B[0;33m%s:%d\x1B[0;0m\n",
                         datagram.data,
                         Sock_ntop_host(&clientfrom, len), clientaddr_in->sin_port,
                         Sock_ntop_host(sock->addr, sizeof(*(sock->addr))), port);
-                    // TODO: need to fork
+
+                    // check if the file request already handled
+                    childpid = checkProcess(datagram.data, Sock_ntop_host(&clientfrom, len), clientaddr_in->sin_port);
+                    if (childpid > 0) {
+                        printf("[Server]: A duplicate file request already handled by child #%d.\n", childpid);
+                        continue;
+                    }
+
                     childpid = Fork();
                     if (childpid == 0) {
                         // this is child process part
@@ -194,6 +242,15 @@ int main(int argc, char **argv) {
                     } else {
                         // this is parent process part
 
+                        // save the pid, filename, client IP and port to process_info
+                        proc = Malloc(sizeof(struct process_info));
+                        bzero(proc, sizeof(*proc));
+                        proc->pid = childpid;
+                        strcpy(proc->filename, datagram.data);
+                        strcpy(proc->address, Sock_ntop_host(&clientfrom, len));
+                        proc->port = clientaddr_in->sin_port;
+                        proc->next = proc_head;
+                        proc_head = proc;
                     }
                 } else {
                     printf("[Server]: Received an invalid packet (no filename requested).\n");

@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-14 16:45:33
+* @Last Modified time: 2015-10-14 21:23:13
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -231,7 +231,7 @@ void Dg_serv(int listeningsockfd, struct socket_info *sock_head, struct sockaddr
 
     // output socket information
     struct sockaddr_in *sockaddr = (struct sockaddr_in *)&ss;
-    printf("[Server Child #%d]: UDP Server Socket (with new private port): %s:%d\n", pid, inet_ntoa(sockaddr->sin_addr), sockaddr->sin_port);
+    printf("[Server Child #%d]: UDP Server Socket (with new private port): \x1B[0;33m%s:%d\x1B[0;0m\n", pid, inet_ntoa(sockaddr->sin_addr), sockaddr->sin_port);
 
     // connect
     Connect(sockfd, client, sizeof(*client));

@@ -5,6 +5,8 @@
 #include "unpthread.h"
 #include "unpifiplus.h"
 
+// Socket on all unicast interfaces structure: socket_infp
+
 #define SOCK_NOTINIT   -1
 
 struct socket_info {
@@ -14,6 +16,8 @@ struct socket_info {
     struct sockaddr     *subnaddr;  /* subnet address */
     struct socket_info  *next;      /* next of these structures */
 };
+
+// File datagram sturcture
 
 typedef unsigned char BITFIELD8;
 typedef struct {
@@ -45,6 +49,18 @@ struct filedatagram {
 // Buffer size definition
 #define IP_BUFFSIZE         20
 #define FILENAME_BUFFSIZE   255
+
+// Server connected processes sturcture
+
+struct process_info {
+    pid_t   pid;
+    char    filename[FILENAME_BUFFSIZE];
+    char    address[IP_BUFFSIZE];
+    int     port;
+    struct process_info *next;
+};
+
+
 
 // Congestion Control
 #define CC_IWND     1   // default iwnd (initial window)
