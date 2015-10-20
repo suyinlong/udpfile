@@ -5,7 +5,7 @@
 #include "unpthread.h"
 #include "unpifiplus.h"
 
-// Socket on all unicast interfaces structure: socket_infp
+// Socket on all unicast interfaces structure: socket_info
 
 #define SOCK_NOTINIT   -1
 
@@ -46,6 +46,13 @@ struct filedatagram {
     char            data[DATAGRAM_DATASIZE];
 };
 
+// Server sender windows structure
+
+struct sender_window {
+    struct filedatagram     datagram;
+    struct sender_window    *next;
+};
+
 // Buffer size definition
 #define IP_BUFFSIZE         20
 #define FILENAME_BUFFSIZE   255
@@ -77,6 +84,6 @@ void Dg_readpacket(int, struct filedatagram *);
 
 void Dg_cli(int);
 
-void Dg_serv(int, struct socket_info *, struct sockaddr *, struct sockaddr *, char *);
+void Dg_serv(int, struct socket_info *, struct sockaddr *, struct sockaddr *, char *, int);
 
 #endif

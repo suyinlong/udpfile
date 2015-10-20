@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-08 21:51:32
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-14 22:32:16
+* @Last Modified time: 2015-10-19 20:44:02
 *
 * File:         udpserver.c
 * Description:  Server C file
@@ -237,7 +237,7 @@ int main(int argc, char **argv) {
                     childpid = Fork();
                     if (childpid == 0) {
                         // this is child process part
-                        Dg_serv(sock->sockfd, sock_head, sock->addr, &clientfrom, datagram.data);
+                        Dg_serv(sock->sockfd, sock_head, sock->addr, &clientfrom, datagram.data, max_winsize);
                         exit(0);
                     } else {
                         // this is parent process part

@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-14 21:23:13
+* @Last Modified time: 2015-10-19 22:41:42
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -12,8 +12,10 @@
 
 pid_t   pid;
 char    IPserver[IP_BUFFSIZE], IPclient[IP_BUFFSIZE];
+FILE    *fp;
 
-uint32_t    serv_seq = 0;
+uint32_t buff_seq = 0, serv_seq = 0;
+struct sender_window *swnd_head = NULL, *swnd_now = NULL, *swnd_tail = NULL;
 
 /* --------------------------------------------------------------------------
  *  Dg_cli_read
@@ -133,6 +135,47 @@ int checkLocal(struct socket_info *sock_head, struct sockaddr *server, struct so
 }
 
 /* --------------------------------------------------------------------------
+ *  Dg_serv_buffer
+ *
+ *  Server window buffer function
+ *
+ *  @param  : int       size    # indicate buffer [size] more packets
+ *  @return : void
+ *
+ *  Buffer datagrams in the sender window buffer
+ * --------------------------------------------------------------------------
+ */
+void Dg_serv_buffer(int size) {
+    int i;
+    struct sender_window *swnd;
+
+    for (i = 0; i < size; i++) {
+         // return if EOF
+        if (feof(fp)) return;
+
+        // malloc memory
+        swnd = Malloc(sizeof(struct sender_window));
+        bzero(&swnd->datagram, DATAGRAM_PAYLOAD);
+        swnd->next = NULL;
+
+        // fill the datagram
+        swnd->datagram.seq = ++ buff_seq;
+        swnd->datagram.len = fread(swnd->datagram.data, sizeof(char), DATAGRAM_DATASIZE, fp);
+        if (feof(fp))
+            swnd->datagram.flag.eof = 1;
+
+        // modify former tail's next
+        if (swnd_tail)
+            swnd_tail->next = swnd;
+        // modify tail
+        swnd_tail = swnd;
+        // set head if head is NULL
+        if (swnd_head == NULL)
+            swnd_head = swnd;
+    }
+}
+
+/* --------------------------------------------------------------------------
  *  Dg_serv_file
  *
  *  Server file send function
@@ -145,30 +188,53 @@ int checkLocal(struct socket_info *sock_head, struct sockaddr *server, struct so
  *  This function is used for sending file content
  * --------------------------------------------------------------------------
  */
-void Dg_serv_file(int sockfd, char *filename) {
-    FILE *fp;
-    uint32_t c_seq;
+void Dg_serv_file(int sockfd, char *filename, int max_winsize) {
+    int k;
+    char l;
+    struct sender_window *swnd;
     struct filedatagram FD;
 
     fp = Fopen(filename, "r+t");
-    while (!feof(fp)) {
-        serv_seq++;
-        c_seq = serv_seq;
-        bzero(&FD, DATAGRAM_PAYLOAD);
-        FD.seq = c_seq;
-        FD.len = fread(FD.data, sizeof(char), DATAGRAM_DATASIZE, fp);
-        if (feof(fp))
-            FD.flag.eof = 1;
 
-        Dg_serv_write(sockfd, &FD);
+    // fill the buffer with max_winsize
+    Dg_serv_buffer(max_winsize);
+
+    // start to send packet
+    swnd_now = swnd_head;
+
+    while (swnd_now) {
+        printf("[Server Child #%d]: Send datagram #%d.\n", pid, swnd_now->datagram.seq);
+        Dg_serv_write(sockfd, &swnd_now->datagram);
+        swnd_now = swnd_now->next;
         Dg_serv_read(sockfd, &FD);
 
-        if (FD.ack == c_seq + 1) {
-            printf("[Server Child #%d]: Received ACK #%d.\n", pid, c_seq);
-            //cc_ack(FD.seq, FD.ts, FD.wnd);
+        printf("[Server Child #%d]: Received ACK #%d.\n", pid, FD.ack);
+        //cc_ack(FD.seq, FD.ts, FD.wnd);
+
+        // free ACKed datagram from head
+        swnd = swnd_head;
+        k = 0;
+        while (swnd && swnd->datagram.seq < FD.ack) {
+            k++;
+
+            // after free, head should move forward
+            // if the tail is ACKed, set the tail to NULL
+            swnd_head = swnd->next;
+            if (swnd_tail == swnd)
+                swnd_tail = NULL;
+            //printf("[Server Child #%d]: Free datagram #%d, k=%d, next=%d.\n", pid, swnd->datagram.seq, k, swnd->next);
+            free(swnd);
+
+            // try next datagram, start from head
+            swnd = swnd_head;
         }
-        else
-            printf("[Server Child #%d]: Error.\n", pid);
+
+        // printf("[Server Child #%d]: Call buffer %d.\n", pid, k);
+        Dg_serv_buffer(k);
+
+        // after rebuffer, check if there is some data need to send
+        if (swnd_head)
+            swnd_now = swnd_head;
     }
     Fclose(fp);
 }
@@ -190,7 +256,7 @@ void Dg_serv_file(int sockfd, char *filename) {
  *  Send private port number
  * --------------------------------------------------------------------------
  */
-void Dg_serv(int listeningsockfd, struct socket_info *sock_head, struct sockaddr *server, struct sockaddr *client, char *filename) {
+void Dg_serv(int listeningsockfd, struct socket_info *sock_head, struct sockaddr *server, struct sockaddr *client, char *filename, int max_winsize) {
     int             local = 0, sockfd, len;
     char            s_port[6];
     const int       on = 1;
@@ -260,7 +326,7 @@ void Dg_serv(int listeningsockfd, struct socket_info *sock_head, struct sockaddr
 
     // start to transfer file content
 
-    Dg_serv_file(sockfd, filename);
+    Dg_serv_file(sockfd, filename, max_winsize);
 
     printf("[Server Child #%d]: Finish sending file.\n", pid);
 }
