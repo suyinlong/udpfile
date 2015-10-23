@@ -7,7 +7,7 @@ FLAGS = -g -O2
 
 CFLAGS = ${FLAGS} -I/home/courses/cse533/Stevens/unpv13e_solaris2.10/lib
 
-all: server client
+all: server client rtserv
 
 get_ifi_info_plus.o: get_ifi_info_plus.c
 	${CC} ${CFLAGS} -c get_ifi_info_plus.c
@@ -20,11 +20,17 @@ dgutils.o: dgutils.c
 dgserv.o: dgserv.c
 	${CC} ${CFLAGS} -c dgserv.c
 
+rtserv.o: rtserv.c
+	${CC} ${CFLAGS} -c rtserv.c
+
 udpserver.o: udpserver.c
 	${CC} ${CFLAGS} -c udpserver.c
 
 server: udpserver.o get_ifi_info_plus.o dgutils.o dgserv.o
 	${CC} ${FLAGS} -o server udpserver.o get_ifi_info_plus.o dgutils.o dgserv.o ${LIBS}
+
+rtserv: rtserv.o
+	${CC} ${FLAGS} -o rtserv rtserv.o ${LIBS}
 
 # client
 

@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-19 22:41:42
+* @Last Modified time: 2015-10-21 17:48:49
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -202,6 +202,15 @@ void Dg_serv_file(int sockfd, char *filename, int max_winsize) {
     // start to send packet
     swnd_now = swnd_head;
 
+    // TODO: need to change the process
+    // 1. call cc_wnd to get windowsize
+    // 2. determine whether there is a lost datagram need to be retransmitted
+    // 3. retransmit if needed, start timer wait for ack
+    // 4. if no lost datagram, transmit datagrams (according to swnd awnd cwnd)
+    // 5. wait for ack
+    // 6. ack received, sliding windows(if needed), call cc_ack, update awnd
+    // 7. if awnd = 0, start persist timer, wait ack to update awnd or send probe when timer expires
+    // 8. else to 1
     while (swnd_now) {
         printf("[Server Child #%d]: Send datagram #%d.\n", pid, swnd_now->datagram.seq);
         Dg_serv_write(sockfd, &swnd_now->datagram);
