@@ -9,6 +9,7 @@
 */
 
 #include "udpfile.h"
+#include "dgcli_impl.h"
 
 char    IPserver[IP_BUFFSIZE], IPclient[IP_BUFFSIZE];
 int     port = 0;
@@ -253,7 +254,30 @@ int main(int argc, char **argv) {
     // output peer information
     printf("UDP Server Socket: %s:%d\n", inet_ntoa(sockaddr->sin_addr), sockaddr->sin_port);
 
+#if 0
     Dg_cli(sockfd);
+#endif
+
+    // initial client arguments
+    dg_arg arg;
+    bzero(&arg, sizeof(arg));
+    strcpy(arg.srvIP, IPserver);
+    arg.srvPort = sockaddr->sin_port;
+    strcpy(arg.filename, filename);
+    arg.rcvWin = max_winsize;
+    arg.seed = seed;
+    arg.p = p;
+    arg.u = mu;
+
+    // create a client 
+    dg_client *cli = CreateDgCli(&arg, sockfd);
+
+    // start the client
+    StartDgCli(cli);
+
+    // destroy the client
+    DestroyDgCli(cli);
 
     exit(0);
 }
+
