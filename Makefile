@@ -1,7 +1,7 @@
 CC = gcc
 
 UNP_DIR = /home/courses/cse533/Stevens/unpv13e_solaris2.10
-	
+
 LIBS = -lresolv -lsocket -lnsl -lpthread -lm\
 	${UNP_DIR}/libunp.a\
 
@@ -9,7 +9,7 @@ FLAGS = -g -O2
 
 CFLAGS = ${FLAGS} -I${UNP_DIR}/lib
 
-all: server client rtserv
+all: server client
 
 get_ifi_info_plus.o: get_ifi_info_plus.c
 	${CC} ${CFLAGS} -c get_ifi_info_plus.c
@@ -28,11 +28,8 @@ rtserv.o: rtserv.c
 udpserver.o: udpserver.c
 	${CC} ${CFLAGS} -c udpserver.c
 
-server: udpserver.o get_ifi_info_plus.o dgutils.o dgserv.o
-	${CC} ${FLAGS} -o server udpserver.o get_ifi_info_plus.o dgutils.o dgserv.o ${LIBS}
-
-rtserv: rtserv.o
-	${CC} ${FLAGS} -o rtserv rtserv.o ${LIBS}
+server: udpserver.o get_ifi_info_plus.o dgutils.o dgserv.o rtserv.o
+	${CC} ${FLAGS} -o server udpserver.o get_ifi_info_plus.o dgutils.o dgserv.o rtserv.o ${LIBS}
 
 # client
 
@@ -58,5 +55,5 @@ readline.o: ${UNP_DIR}/threads/readline.c
 	${CC} ${CFLAGS} -c ${UNP_DIR}/threads/readline.c
 
 clean:
-	rm server udpserver.o client udpclient.o get_ifi_info_plus.o readline.o dgutils.o dgcli.o dgserv.o dgbuffer.o dgcli_impl.o
+	rm server udpserver.o client udpclient.o get_ifi_info_plus.o readline.o dgutils.o dgcli.o dgserv.o rtserv.o dgbuffer.o dgcli_impl.o
 
