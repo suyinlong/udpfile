@@ -104,6 +104,7 @@ int ReadDgFifo(dg_fifo *fifo, void *data, int *dataSize)
 
     fifo->head = fifo->head->next;
 
+    // copy data
     memcpy(data, node->data, node->size);
     *dataSize = node->size;
 
@@ -189,7 +190,7 @@ int CheckSeqRange(dg_rcv_buf *buf, int idx)
         idx < n)    // less than expect segment seq
     {
         // out of range, can't save in buffer
-        printf("Window index=%d out of range[%d, %d]\n", idx, n, r);
+        printf("[Client]: Window index=%d out of range[%d, %d]\n", idx, n, r);
         return -1;
     }
 
@@ -211,8 +212,8 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data)
 
     if (buf->buffer[idx].seq == data->seq)
     {
-        printf("[Client]: Receive seq=%d, already in buffer\n", data->seq);
-        return -1;
+        printf("[Client]: Receive datagram, seq=%d, already in buffer\n", data->seq);
+        return -2;
     }
 
     dg_sliding_wnd *rwnd = &buf->rwnd;
@@ -230,9 +231,9 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data)
     {
         if (CheckSeqRange(buf, idx) < 0)
         {
-            printf("[Client]: Receive seq=%d out of range, win[%d, %d] next=%d win=%d\n",
+            printf("[Client]: Receive datagram, seq=%d out of range, win[%d, %d] next=%d win=%d\n",
                 data->seq, buf->rwnd.base, buf->rwnd.top, buf->rwnd.next, buf->rwnd.win);
-            return -1;
+            return -3;
         }
 
         if (idx == rwnd->next)
@@ -242,10 +243,10 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data)
                 // in-order
                 // expected seq number
                 buf->nextSeq++;
-                buf->ts = data->ts;
+                buf->ts = data->ts;   // store current timestamp 
                 rwnd->next = (buf->rwnd.next + 1) % buf->frameSize;
 
-            } while(buf->buffer[rwnd->next].seq != 0);
+            } while(buf->buffer[rwnd->next].seq != 0);  // check next frame
         }
         else
         {
@@ -258,8 +259,7 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data)
     memcpy(&buf->buffer[idx], data, sizeof(struct filedatagram));
     rwnd->win--;
 
-    printf("[Client]: Receive seq=%d ts=%d, win[%d, %d] next=%d win=%d\n",
-        data->seq, data->ts, buf->rwnd.base, buf->rwnd.top, buf->rwnd.next, buf->rwnd.win);
+    printf("[Debug]: Receive datagram, seq=%d ack=%d ts=%d win=%d\n", data->seq, data->ack, data->ts, buf->rwnd.win);
     
     return ack;
 }
@@ -304,8 +304,7 @@ int ReadDgRcvBuf(dg_rcv_buf *buf, struct filedatagram *data, int need)
         buf->rwnd.top = (buf->rwnd.top + 1) % buf->frameSize;
         buf->rwnd.win++;
 
-        printf("put  seq=%d to app, win[%d, %d] next=%d win=%d\n", 
-            data->seq, buf->rwnd.base, buf->rwnd.top, buf->rwnd.next, buf->rwnd.win);
+        printf("[Debug]: Read buffer, seq=%d ack=%d ts=%d win=%d\n", data->seq, data->ack, data->ts, buf->rwnd.win);
 
         return --inOrderPkt;
     }

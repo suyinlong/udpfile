@@ -254,10 +254,9 @@ int main(int argc, char **argv) {
     // output peer information
     printf("UDP Server Socket: %s:%d\n", inet_ntoa(sockaddr->sin_addr), sockaddr->sin_port);
 
-
-    Dg_cli(sockfd);
-
 #if 0
+    Dg_cli(sockfd);
+#elif 1
     // initial client arguments
     dg_arg arg;
     bzero(&arg, sizeof(arg));

@@ -2,7 +2,7 @@ CC = gcc
 
 UNP_DIR = /home/courses/cse533/Stevens/unpv13e_solaris2.10
 
-LIBS = -lresolv -lsocket -lnsl -lpthread -lm\
+LIBS = -lresolv -lsocket -lnsl -lpthread -lm -lrt\
 	${UNP_DIR}/libunp.a\
 
 FLAGS = -g -O2

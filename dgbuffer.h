@@ -135,7 +135,7 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data);
 * @param[in] buf  : receive buffer object
 * @param[in] data : struct filedatagram data
 * @param[in] need : if 1 read current data
-* @return if there is more data to read return > 0, -1 on error
+* @return if more than one segments data to read, return the segments number, -1 on error
 **/
 int ReadDgRcvBuf(dg_rcv_buf *buf, struct filedatagram *data, int need);
 
