@@ -1,11 +1,13 @@
 CC = gcc
 
-LIBS = -lresolv -lsocket -lnsl -lpthread\
-	/home/courses/cse533/Stevens/unpv13e_solaris2.10/libunp.a\
+UNP_DIR = /home/courses/cse533/Stevens/unpv13e_solaris2.10
+	
+LIBS = -lresolv -lsocket -lnsl -lpthread -lm\
+	${UNP_DIR}/libunp.a\
 
 FLAGS = -g -O2
 
-CFLAGS = ${FLAGS} -I/home/courses/cse533/Stevens/unpv13e_solaris2.10/lib
+CFLAGS = ${FLAGS} -I${UNP_DIR}/lib
 
 all: server client rtserv
 
@@ -40,15 +42,21 @@ dgcli.o: dgcli.c
 udpclient.o: udpclient.c
 	${CC} ${CFLAGS} -c udpclient.c
 
-client: udpclient.o readline.o get_ifi_info_plus.o dgutils.o dgcli.o
-	${CC} ${FLAGS} -o client udpclient.o readline.o get_ifi_info_plus.o dgutils.o dgcli.o ${LIBS}
+dgbuffer.o: dgbuffer.c
+	${CC} ${CFLAGS} -c dgbuffer.c
+
+dgcli_impl.o: dgcli_impl.c
+	${CC} ${CFLAGS} -c dgcli_impl.c
+
+client: udpclient.o readline.o get_ifi_info_plus.o dgutils.o dgcli.o dgbuffer.o dgcli_impl.o
+	${CC} ${FLAGS} -o client udpclient.o readline.o get_ifi_info_plus.o dgutils.o dgcli.o dgbuffer.o dgcli_impl.o ${LIBS}
 
 
 # pick up the thread-safe version of readline.c from directory "threads"
 
-readline.o: /home/courses/cse533/Stevens/unpv13e_solaris2.10/threads/readline.c
-	${CC} ${CFLAGS} -c /home/courses/cse533/Stevens/unpv13e_solaris2.10/threads/readline.c
+readline.o: ${UNP_DIR}/threads/readline.c
+	${CC} ${CFLAGS} -c ${UNP_DIR}/threads/readline.c
 
 clean:
-	rm server udpserver.o client udpclient.o get_ifi_info_plus.o readline.o dgutils.o dgcli.o dgserv.o
+	rm server udpserver.o client udpclient.o get_ifi_info_plus.o readline.o dgutils.o dgcli.o dgserv.o dgbuffer.o dgcli_impl.o
 
