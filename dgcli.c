@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 11:50:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-14 17:01:26
+* @Last Modified time: 2015-10-23 00:28:38
 *
 * File:         dgcli.c
 * Description:  Datagram Client C file
@@ -102,6 +102,7 @@ void Dg_cli_file(int sockfd) {
         FD.seq = cli_seq;
         FD.ack = seq + 1;
         FD.ts = timestamp;
+        FD.wnd = max_winsize;
 
         Dg_cli_write(sockfd, &FD);
 
@@ -164,6 +165,7 @@ void Dg_cli(int sockfd) {
     bzero(&FD, sizeof(FD));
     FD.seq = 1;
     FD.ack = 1;
+    FD.wnd = max_winsize;
     FD.flag.pot = 1;
     FD.len = 0;
 

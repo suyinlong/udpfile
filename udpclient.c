@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-09 09:49:37
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-12 09:28:44
+* @Last Modified time: 2015-10-22 23:28:32
 *
 * File:         udpclient.c
 * Description:  Client C file
@@ -254,10 +254,10 @@ int main(int argc, char **argv) {
     // output peer information
     printf("UDP Server Socket: %s:%d\n", inet_ntoa(sockaddr->sin_addr), sockaddr->sin_port);
 
-#if 0
-    Dg_cli(sockfd);
-#endif
 
+    Dg_cli(sockfd);
+
+#if 0
     // initial client arguments
     dg_arg arg;
     bzero(&arg, sizeof(arg));
@@ -269,7 +269,7 @@ int main(int argc, char **argv) {
     arg.p = p;
     arg.u = mu;
 
-    // create a client 
+    // create a client
     dg_client *cli = CreateDgCli(&arg, sockfd);
 
     // start the client
@@ -277,7 +277,7 @@ int main(int argc, char **argv) {
 
     // destroy the client
     DestroyDgCli(cli);
-
+#endif
     exit(0);
 }
 

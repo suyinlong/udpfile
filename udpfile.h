@@ -88,7 +88,7 @@ void cc_timeout();
 void cc_init(uint16_t, uint16_t);
 uint16_t cc_wnd();
 uint16_t cc_updwnd(uint16_t);
-uint16_t cc_ack(uint32_t, uint16_t);
+uint16_t cc_ack(uint32_t, uint16_t, uint8_t*);
 
 
 #endif

@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-21 17:48:49
+* @Last Modified time: 2015-10-23 00:18:26
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -191,6 +191,8 @@ void Dg_serv_buffer(int size) {
 void Dg_serv_file(int sockfd, char *filename, int max_winsize) {
     int k;
     char l;
+    uint16_t    max_sendsize    = 0;
+    uint8_t     fr_flag         = 0; // fast restransmission flag
     struct sender_window *swnd;
     struct filedatagram FD;
 
@@ -198,6 +200,9 @@ void Dg_serv_file(int sockfd, char *filename, int max_winsize) {
 
     // fill the buffer with max_winsize
     Dg_serv_buffer(max_winsize);
+
+    // init congestion control
+    cc_init(10, max_winsize); // awnd set to 0 first TODO: GET AWND FROM ACK!!!
 
     // start to send packet
     swnd_now = swnd_head;
@@ -211,14 +216,26 @@ void Dg_serv_file(int sockfd, char *filename, int max_winsize) {
     // 6. ack received, sliding windows(if needed), call cc_ack, update awnd
     // 7. if awnd = 0, start persist timer, wait ack to update awnd or send probe when timer expires
     // 8. else to 1
-    while (swnd_now) {
-        printf("[Server Child #%d]: Send datagram #%d.\n", pid, swnd_now->datagram.seq);
-        Dg_serv_write(sockfd, &swnd_now->datagram);
-        swnd_now = swnd_now->next;
+    while (1) {
+        max_sendsize = cc_wnd();
+        if (max_sendsize > 0 && fr_flag > 0) {
+            // TODO: retransmit lost packet
+            printf("[Server Child #%d]: Resend datagram #%d \x1b[43;31m(Fast Retransmission).\x1B[0;0m\n", pid, swnd_head->datagram.seq);
+            Dg_serv_write(sockfd, &swnd_head->datagram);
+            max_sendsize--;
+        }
+        while (max_sendsize > 0 && swnd_now) {
+            // after (possible) retransmit, if sendsize > 0, send more datagrams
+            printf("[Server Child #%d]: Send datagram #%d.\n", pid, swnd_now->datagram.seq);
+            Dg_serv_write(sockfd, &swnd_now->datagram);
+            swnd_now = swnd_now->next;
+            max_sendsize--;
+        }
+
         Dg_serv_read(sockfd, &FD);
 
         printf("[Server Child #%d]: Received ACK #%d.\n", pid, FD.ack);
-        //cc_ack(FD.seq, FD.ts, FD.wnd);
+        cc_ack(FD.ack, FD.wnd, &fr_flag);
 
         // free ACKed datagram from head
         swnd = swnd_head;
@@ -242,8 +259,8 @@ void Dg_serv_file(int sockfd, char *filename, int max_winsize) {
         Dg_serv_buffer(k);
 
         // after rebuffer, check if there is some data need to send
-        if (swnd_head)
-            swnd_now = swnd_head;
+        if (swnd_head == NULL)
+            break;
     }
     Fclose(fp);
 }
