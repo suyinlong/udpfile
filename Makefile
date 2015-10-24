@@ -22,14 +22,17 @@ dgutils.o: dgutils.c
 dgserv.o: dgserv.c
 	${CC} ${CFLAGS} -c dgserv.c
 
+rtt.o: rtt.c
+	${CC} ${CFLAGS} -c rtt.c
+
 rtserv.o: rtserv.c
 	${CC} ${CFLAGS} -c rtserv.c
 
 udpserver.o: udpserver.c
 	${CC} ${CFLAGS} -c udpserver.c
 
-server: udpserver.o get_ifi_info_plus.o dgutils.o dgserv.o rtserv.o
-	${CC} ${FLAGS} -o server udpserver.o get_ifi_info_plus.o dgutils.o dgserv.o rtserv.o ${LIBS}
+server: udpserver.o get_ifi_info_plus.o dgutils.o dgserv.o rtserv.o rtt.o
+	${CC} ${FLAGS} -o server udpserver.o get_ifi_info_plus.o dgutils.o dgserv.o rtserv.o rtt.o ${LIBS}
 
 # client
 
@@ -55,5 +58,5 @@ readline.o: ${UNP_DIR}/threads/readline.c
 	${CC} ${CFLAGS} -c ${UNP_DIR}/threads/readline.c
 
 clean:
-	rm server udpserver.o client udpclient.o get_ifi_info_plus.o readline.o dgutils.o dgcli.o dgserv.o rtserv.o dgbuffer.o dgcli_impl.o
+	rm server udpserver.o client udpclient.o get_ifi_info_plus.o readline.o dgutils.o dgcli.o dgserv.o rtserv.o dgbuffer.o dgcli_impl.o rtt.o
 

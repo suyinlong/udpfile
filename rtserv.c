@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-13 10:01:16
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-22 23:53:23
+* @Last Modified time: 2015-10-24 01:32:04
 *
 * File:         rtserv.c
 * Description:  Reliable Transmission Server C file
@@ -201,7 +201,7 @@ uint16_t cc_updwnd(uint16_t wnd) {
  *
  *  @param  : uint32_t  : ACK sequence number
  *            uint16_t  : advertised receiver window size
- *            uint32_t* : retransmit datagram sequence number
+ *            uint8_t*  : fast retransmit flag (1=retransmit)
  *  @return : uint16_t  : the number of datagrams that can be sent
  *
  *  Congestion Control Acknowledgements Handler
@@ -215,7 +215,7 @@ uint16_t cc_updwnd(uint16_t wnd) {
  *         recovery state:
  *             ssthresh = cwnd / 2
  *             cwnd = ssthresh + 3 (the window-inflation, not needed in A2)
- *             # set retransmission variable: retransmit_seq
+ *             # set retransmission variable: fr_flag
  *     (c) If new ACK received and server is in fast recovery state:
  *             cwnd = ssthresh
  *             # server exit fast recovery state and goes into congestion
@@ -227,13 +227,18 @@ uint16_t cc_updwnd(uint16_t wnd) {
  *  Return the min value of cwnd and awnd
  * --------------------------------------------------------------------------
  */
-uint16_t cc_ack(uint32_t seq, uint16_t wnd, uint8_t *fr_flag) {
+uint16_t cc_ack(uint32_t seq, uint16_t wnd, uint8_t flag, uint8_t *fr_flag) {
+    // problem: What if the fast retransmit packet is lost???
+    // problem: and after this the timeout one is lost too?
+
     this_ack = seq;
     awnd = wnd;
     *fr_flag = 0;
     if (this_ack == last_ack)
         dup_c ++;
     else
+        dup_c = 0;
+    if (flag == 1)
         dup_c = 0;
 
     printf("[Server Child #%d]: CC ACK. (ACK = %d, awnd = %d, dup_c = %d)\n", pid, seq, wnd, dup_c);

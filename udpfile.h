@@ -4,6 +4,7 @@
 #include "unp.h"
 #include "unpthread.h"
 #include "unpifiplus.h"
+#include "unprtt.h"
 
 // Socket on all unicast interfaces structure: socket_info
 
@@ -71,6 +72,9 @@ struct process_info {
 #define CC_IWND     1   // default iwnd (initial window)
 #define CC_SSTHRESH -1  // default ssthresh, -1 indicate that ssthresh = awnd
 
+// Persist timer
+#define PERSIST_TIMER   200 // default timer 200 milliseconds
+
 // function headers
 extern struct ifi_info *Get_ifi_info_plus(int family, int doaliases);
 extern        void      free_ifi_info_plus(struct ifi_info *ifihead);
@@ -88,7 +92,7 @@ void cc_timeout();
 void cc_init(uint16_t, uint16_t);
 uint16_t cc_wnd();
 uint16_t cc_updwnd(uint16_t);
-uint16_t cc_ack(uint32_t, uint16_t, uint8_t*);
+uint16_t cc_ack(uint32_t, uint16_t, uint8_t, uint8_t*);
 
 
 #endif
