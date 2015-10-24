@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-24 01:48:02
+* @Last Modified time: 2015-10-24 10:44:56
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -17,7 +17,7 @@ FILE    *fp;
 
 char    rttinit = 0;
 struct rtt_info rttinfo;
-uint32_t buff_seq = 0, serv_seq = 0;
+uint32_t buff_seq = 0;
 struct sender_window *swnd_head = NULL, *swnd_now = NULL, *swnd_tail = NULL;
 
 /* --------------------------------------------------------------------------
@@ -399,7 +399,7 @@ selectagain:
                 char c;
                 Read(pfd[0], &c, 1);
                 if (rtt_timeout(&rttinfo) < 0) {
-                    printf("[Server Child #%d]: \x1b[41;33mTerminate for timeout.\x1B[0;0m\n", pid);
+                    printf("[Server Child #%d]: \x1b[41;33mTerminate for file datagram timeout.\x1B[0;0m\n", pid);
                     rttinit = 0;
                     errno = ETIMEDOUT;
                     return 0;
@@ -422,6 +422,91 @@ selectagain:
 }
 
 /* --------------------------------------------------------------------------
+ *  Dg_serv_port
+ *
+ *  Server port number send function
+ *
+ *  @param  : int               port
+ *            int               listeningsockfd
+ *            int               sockfd
+ *            struct sockaddr   *client
+ *  @return : int       0 = fail
+ *
+ *  Use RTO mechanism to send port number
+ *  If timeout, retry by sending port number to both listeningsockfd and
+ *  sockfd
+ * --------------------------------------------------------------------------
+ */
+int Dg_serv_port(int port, int listeningsockfd, int sockfd, struct sockaddr *client) {
+    char s_port[6], port_flag = 0;
+    struct filedatagram FD;
+
+    printf("[Server Child #%d]: Waiting for port number acknowledged from client...\n", pid);
+
+    rtt_newpack(&rttinfo); // new packet
+
+    // create a datagram packet with port number
+    bzero(&FD, sizeof(FD));
+    FD.seq = 0;         // port datagram has seq = 0
+    FD.ack = 1;
+    FD.flag.pot = 1;    // indicate this is a packet with port number
+    sprintf(s_port, "%d", port);
+    FD.len = strlen(s_port);
+    strcpy(FD.data, s_port);
+
+sendportagain:
+    // send the new private port number via listening socket (and connected socket, if timeout)
+    Dg_serv_send(listeningsockfd, client, sizeof(*client), &FD);
+    if (port_flag)
+        Dg_serv_write(sockfd, &FD);
+    port_flag = 1;
+    setAlarm(rtt_start(&rttinfo));
+
+    for ( ; ; ) {
+        int r;
+        fd_set fds;
+        FD_ZERO(&fds);
+        FD_SET(sockfd, &fds);
+        FD_SET(pfd[0], &fds);
+
+        r = select(max(sockfd, pfd[0]) + 1, &fds, NULL, NULL, NULL);
+        if (r == -1 && errno == EINTR)
+            continue;
+        if (FD_ISSET(sockfd, &fds)) {
+            // datagram received
+            setAlarm(0);
+            // should receive ACK from connection socket
+            Dg_serv_read(sockfd, &FD);
+
+            rtt_stop(&rttinfo, rtt_ts(&rttinfo) - FD.ts);
+            if (FD.ack == 1 && FD.flag.pot == 1) {
+                printf("[Server Child #%d]: Received ACK. Private connection established.\n", pid);
+                close(listeningsockfd);
+                return (1);
+            } else {
+                printf("[Server Child #%d]: Received an invalid packet (not port ACK).\n");
+                goto sendportagain;
+            }
+
+        } else if (FD_ISSET(pfd[0], &fds)) {
+            // timeout
+            char c;
+            Read(pfd[0], &c, 1);
+            if (rtt_timeout(&rttinfo) < 0) {
+                printf("[Server Child #%d]: \x1b[41;33mTerminate for port datagram timeout.\x1B[0;0m\n", pid);
+                rttinit = 0;
+                errno = ETIMEDOUT;
+                break;
+            }
+            goto sendportagain;
+        }
+        if (r == -1)
+            err_sys("select error");
+    }
+    return 0;
+}
+
+/* --------------------------------------------------------------------------
  *  Dg_serv
  *
  *  Server service function
@@ -440,7 +525,7 @@ selectagain:
  */
 void Dg_serv(int listeningsockfd, struct socket_info *sock_head, struct sockaddr *server, struct sockaddr *client, char *filename, int max_winsize) {
     int             local = 0, sockfd, len;
-    char            s_port[6];
+
     const int       on = 1;
     struct filedatagram     FD;
     struct sockaddr_in      servaddr;
@@ -492,37 +577,16 @@ void Dg_serv(int listeningsockfd, struct socket_info *sock_head, struct sockaddr
     Signal(SIGALRM, sig_alrm); // Signal handler
     Pipe(pfd); // create pipe
 
-    rtt_newpack(&rttinfo); // new packet
+    // start to transfer port number
+    if (Dg_serv_port(sockaddr->sin_port, listeningsockfd, sockfd, client) == 1) {
+        // start to transfer file content
+        if (Dg_serv_file(sockfd, filename, max_winsize) == 1)
+            printf("[Server Child #%d]: Finish sending file.\n", pid);
+        else
+            printf("[Server Child #%d]: Sending file error.\n", pid);
+    } else
+        printf("[Server Child #%d]: Sending port number error.\n", pid);
 
-    // create a datagram packet with port number
-    bzero(&FD, sizeof(FD));
-    FD.seq = serv_seq;
-    FD.ack = 1;
-    FD.flag.pot = 1;    // indicate this is a packet with port number
-    sprintf(s_port, "%d", sockaddr->sin_port);
-    FD.len = strlen(s_port);
-    strcpy(FD.data, s_port);
-
-    // send the new private port number via listening socket
-    Dg_serv_send(listeningsockfd, client, sizeof(*client), &FD);
-
-    // should receive ACK from connection socket
-    Dg_serv_read(sockfd, &FD);
-
-    rtt_stop(&rttinfo, rtt_ts(&rttinfo) - FD.ts);
-    if (FD.ack == 1 && FD.flag.pot == 1) {
-        printf("[Server Child #%d]: Received ACK. Private connection established.\n", pid);
-        close(listeningsockfd);
-    } else {
-        printf("[Server Child #%d]: Received an invalid packet (not ACK).\n");
-    }
-
-    // start to transfer file content
-
-    if (Dg_serv_file(sockfd, filename, max_winsize) == 1)
-        printf("[Server Child #%d]: Finish sending file.\n", pid);
-    else
-        printf("[Server Child #%d]: Sending file error.\n", pid);
     close(pfd[0]);
     close(pfd[1]);
 }
