@@ -16,7 +16,7 @@
 #define RANDOM_MAX       0x7FFFFFFF  // 2^31 - 1
 
 
-void   SendDgSrvAck(dg_client *cli, uint32_t ack, uint32_t ts, int wnd);
+void   SendDgSrvAck(dg_client *cli, uint32_t ack, uint32_t ts, int wnd, int line);
 void   GetDatagram(dg_client *cli, int need);
 double DgRandom();
 
@@ -175,42 +175,43 @@ int SendDgSrvFilenameReq(dg_client *cli)
 }
 
 // send ack to server
-void SendDgSrvAck(dg_client *cli, uint32_t ack, uint32_t ts, int wnd)
+void SendDgSrvAck(dg_client *cli, uint32_t ack, uint32_t ts, int wnd, int line)
 {
-    struct filedatagram sndData;
+    struct filedatagram dg;
     // init filedatagram
-    bzero(&sndData, sizeof(sndData));
+    bzero(&dg, sizeof(dg));
 
-    sndData.seq = cli->seq++;
-    sndData.ack = ack;
-    sndData.ts = ts;
-    sndData.flag.wnd = 1;
-    sndData.wnd = wnd;
-    sndData.len = 0;
+    dg.seq = cli->seq++;
+    dg.ack = ack;
+    dg.ts = ts;
+    dg.flag.wnd = 1;
+    dg.wnd = wnd;
+    dg.len = 0;
+    cli->buf->acked = ack;
 
     if (DgRandom() > cli->arg->p)
-        Dg_writepacket(cli->sock, &sndData);
+        Dg_writepacket(cli->sock, &dg);
 
-    printf("[Debug]: Send ack=%d seq=%d ts=%d win=%d\n", 
-        sndData.ack, sndData.seq, sndData.ts, sndData.wnd);
+    printf("[Debug@%d #%d]: Send ack=%d seq=%d ts=%d win=%d\n", 
+        line, pthread_self(), dg.ack, dg.seq, dg.ts, dg.wnd);
 }
 
 // send new port ack
 int SendDgSrvNewPortAck(dg_client *cli, struct filedatagram *data)
 {
-    struct filedatagram sndData;
+    struct filedatagram dg;
     // init filedatagram
-    bzero(&sndData, sizeof(sndData));
-    sndData.seq = cli->seq++;
-    sndData.ack = 1;
-    sndData.flag.pot = 1;
-    sndData.len = 0;
+    bzero(&dg, sizeof(dg));
+    dg.seq = cli->seq++;
+    dg.ack = 1;
+    dg.flag.pot = 1;
+    dg.len = 0;
 
     while (1)
     {
         // if random() <= p, discard the datagram (just don't send)
         if (DgRandom() > cli->arg->p)
-            Dg_writepacket(cli->sock, &sndData);
+            Dg_writepacket(cli->sock, &dg);
 
         // wait for server data, use a timer
         int rcvSize = sizeof(struct filedatagram);
@@ -322,28 +323,28 @@ int SetDelayedAckTimer(dg_client *cli)
         return -1;
     }
 
-    timer_t timerid;
     struct sigevent evp;
     evp.sigev_notify = SIGEV_SIGNAL;
     evp.sigev_signo = SIG_DELAYEDACK;
     evp.sigev_value.sival_ptr = cli;    // pass the client object    
 
     // create a timer
-    if (timer_create(CLOCK_REALTIME, &evp, &timerid) < 0)
+    if (timer_create(CLOCK_REALTIME, &evp, &cli->delayedAckTimer) < 0)
     {
         printf("[Client]: timer_create error\n");
         return -1;
     }        
     
     // set 500ms delayed ack timer
+    int n = 500;
     struct itimerspec it;
     it.it_interval.tv_sec = 0;
-    it.it_interval.tv_nsec = 500 * 1000000;
+    it.it_interval.tv_nsec = n * 1000000;
     it.it_value.tv_sec = 0;
     it.it_value.tv_nsec = 500 * 1000000;
     
     // set the timer
-    if (timer_settime(timerid, 0, &it, NULL))
+    if (timer_settime(cli->delayedAckTimer, 0, &it, NULL))
     {
         printf("[Client]: timer_settime error\n");
         return -1;
@@ -405,7 +406,7 @@ void GetDatagram(dg_client *cli, int need)
     if (ret != -1)
     {
         // segments in-order, send ack to server 
-        SendDgSrvAck(cli, dg.seq + 1, dg.ts, cli->buf->rwnd.win);
+        SendDgSrvAck(cli, dg.seq + 1, dg.ts, cli->buf->rwnd.win, __LINE__);
     }
 }
 
@@ -436,11 +437,13 @@ int StartDgCli(dg_client *cli)
     if (SetDelayedAckTimer(cli))
         return -1;
 
-    struct filedatagram dg;
+    struct filedatagram dg = { 0 };
     int sz = sizeof(dg);
 
+    // main loop
     while (1)
     {
+        bzero(&dg, sizeof(dg));
         // receive data
         ret = RecvDataTimeout(cli->sock, &dg, &sz, cli->timeout, cli->arg->p);
         if (ret < 0)
@@ -451,36 +454,47 @@ int StartDgCli(dg_client *cli)
                 break;
         }
 
+#if 0
         dg.len = ntohs(dg.len);
         dg.seq = ntohl(dg.seq);
         dg.ack = ntohl(dg.ack);
-        dg.ts  = ntohl(dg.ts);
+        dg.ts = ntohl(dg.ts);
         dg.wnd = ntohs(dg.wnd);
+#endif
+
+
+        //printf("dg.seq=%d ret=%d, rwnd.base=%d rwnd.next=%d rwnd.top=%d\n", \
+            dg.seq, ret, cli->buf->rwnd.base, cli->buf->rwnd.next, cli->buf->rwnd.top);
 
         // received window probe
-        if (dg.flag.pob)
+        if (dg.flag.pob == 1)
         {
             // send current window size
-            SendDgSrvAck(cli, cli->buf->nextSeq, dg.ts, cli->buf->rwnd.win);
+            SendDgSrvAck(cli, cli->buf->nextSeq, dg.ts, cli->buf->rwnd.win, __LINE__);
             continue;
         }        
         
+        uint32_t ack = 0, ts = 0;
         // put data to receive buffer
-        ret = WriteDgRcvBuf(cli->buf, &dg);
-        if (-1 == ret)
+        ack = WriteDgRcvBuf(cli->buf, &dg);
+        if (ack == -1)
         {
             // sliding window size is zero
-            SendDgSrvAck(cli, cli->buf->nextSeq, dg.ts, cli->buf->rwnd.win);
+            SendDgSrvAck(cli, cli->buf->nextSeq, dg.ts, cli->buf->rwnd.win, __LINE__);
             continue;
         }
-        else if (ret > 0)
+        else if (ack > 0)
         {
             // out of order, send duplicate ack
-            SendDgSrvAck(cli, ret, cli->buf->ts, cli->buf->rwnd.win);
+            SendDgSrvAck(cli, ack, cli->buf->ts, cli->buf->rwnd.win, __LINE__);
         }
 
         // get datagram from buffer
-        GetDatagram(cli, 0);
+        //GetDatagram(cli, 0);
+        if (GetInOrderAck(cli->buf, &ack, &ts) == 0)
+        {
+            SendDgSrvAck(cli, ack, ts, cli->buf->rwnd.win, __LINE__);
+        }
     }
 
     return 0;

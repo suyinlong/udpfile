@@ -105,6 +105,7 @@ typedef struct dg_rcv_buf_t
     uint32_t        firstSeq;       // first seq number
     uint32_t        nextSeq;        // expected seq number
     uint32_t        ts;             // ack's timestamp
+    uint32_t        acked;          // last ack number
     pthread_mutex_t	mutex;          // mutex value
     dg_sliding_wnd  rwnd;           // receive sliding window
     struct filedatagram *buffer;    // buffer array, the size is frameSize
@@ -127,9 +128,12 @@ void DestroyDgRcvBuf(dg_rcv_buf *buf);
 * @brief  Write data to receive buffer
 * @param[in] buf  : receive buffer object
 * @param[in] data : struct filedatagram data
-* @return 0 if OK, -1 on error
+* @return if > 0 return the ack 
+          if -1 rwnd is 0
+          if -2 segment is already in buffer
+          if -3 segment is out of rwnd range
 **/
-int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data);
+uint32_t WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data);
 
 /**
 * @brief  Read data from receive buffer object
@@ -139,6 +143,15 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data);
 * @return if more than one segments data to read, return the segments number, -1 on error
 **/
 int ReadDgRcvBuf(dg_rcv_buf *buf, struct filedatagram *data, int need);
+
+/**
+* @brief  Get in-order ack
+* @param[in] buf   : receive buffer object
+* @param[out] ack  : in-order ack
+* @param[out] ts   : last in-order segment's timestamp
+* @return return the ack number, -1 on error
+**/
+int GetInOrderAck(dg_rcv_buf *buf, uint32_t *ack, uint32_t *ts);
 
 #endif // __DG_BUFFER_H_
 

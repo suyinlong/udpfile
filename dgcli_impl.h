@@ -35,6 +35,7 @@ typedef struct dg_client_t
     dg_fifo    *fifo;
     dg_rcv_buf *buf;
     uint32_t    seq;
+    timer_t     delayedAckTimer;
     int         sock;
     int         newPort;
     int         timeout;    
