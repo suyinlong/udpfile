@@ -1,19 +1,270 @@
-THIS IS A SAMPLE INFORMATION
+AUTHORS INFORMATION
 ==================
 
-UDP File Transfer
+Author 1    :   Yinlong Su
+Student ID  :   110461173
+Email       :   yinlsu@cs.stonybrook.edu
 
-CSE533 Fall 2015 Project 2
+Author 2    :   Jiewen Zheng
+Student ID  :
+Email       :
 
-*************************************************
-*************************************************
-*************************************************
-*************************************************
-*************************************************
-*************************************************
-*************************************************
-*************************************************
-*************************************************
-*************************************************
 
-THIS IS END
+COMPILE AND RUN
+===============
+
+Make sure the library are in right location:
+
+    libunp.a    /home/courses/cse533/Stevens/unpv13e_solaris2.10/libunp.a
+
+Execute the following from the directory to compile the source code:
+
+    make                # use "make" to compile the source
+
+Before running the programs, make sure the configuration files are in
+the same directory.
+
+    server.in
+    client.in
+
+Run the programs:
+
+    ./server &          # run the server in daemon mode
+    ./client            # run the client
+
+
+SYSTEM DOCUMENTATION
+====================
+
+This program is a UDP socket based file transfer services server and client.
+
+1.  Server part (udpserver.c)
+
+    When starting the server, you can use the following command
+
+        ./server &
+
+    to initiate the server in daemon mode, in which the server will run as
+    a background process.
+
+    a.  Binding unicast address
+        The server uses Get_ifi_info_plus (in get_ifi_into_plus.c) function to
+        get all interface information. The difference between get_ifi_info and
+        Get_ifi_info_plus is the latter will also get the network mask for the
+        interface. We use socket_info structure (in udpfile.h) to store the
+        server interface information.
+
+        struct socket_info {
+            int sockfd;
+            struct sockaddr     *addr;      /* primary address */
+            struct sockaddr     *ntmaddr;   /* netmask address */
+            struct sockaddr     *subnaddr;  /* subnet address */
+            struct socket_info  *next;      /* next of these structures */
+        };
+
+        In function bind_sockets (in udpserver.c), we obtain all information
+        created by Get_ifi_info_plus and calculate the subnet address for
+        every interface. Then we bind the unicast address (primary address)
+        to a new UDP socket.
+
+        The server will free the memory used by Get_ifi_info_plus and print
+        out interface information basing on our socket_info structure.
+
+    b.  Handling incoming client requests
+        The server use select to listen for new clients. When new client
+        request comes in, the server forks off a child process to handle
+        the client. Noting that the reply from server to client can be lost,
+        we use process_info structure (in udpfile.h) to ensure that we don't
+        spawn off another child process.
+
+        struct process_info {
+            pid_t   pid;
+            char    filename[FILENAME_BUFFSIZE];
+            char    address[IP_BUFFSIZE];
+            int     port;
+            struct process_info *next;
+        };
+
+        Structure process_info stores the filename, IP address and port number
+        of the client, which uniquely specify a file request.
+
+    c.  Checking loopback and subnet address
+        The server child process will first checks whether server and client
+        are local. We check if the client connects to loopback address
+        127.0.0.1, then check if the server and client are in the same subnet
+        using our socket_info structure.
+        We will use SO_DONTROUTE when creating socket if server and client are
+        local.
+
+    d.  Establishing private connection
+        We want the communication of our client and server not to be
+        interfered by other network node. The server will now use a new port
+        to communicate with client. The server sends the port number datagram
+        via 'old' socket. This datagram is backed up by ARQ mechanism. If the
+        timeout happens, it retransmits through 'old' socket and 'new socket'
+        both (in case the reply port ACK of client is lost). The server child
+        process will fail after 12 unsuccessful tries. This part is
+        implemented in Dg_serv_port function in dgserv.c.
+
+    e.  Transmitting file: Datagram structure
+        The UDP filedatagram structure in our program is defined in udpfile.h.
+
+        struct filedatagram {
+            uint32_t    seq;    /* datagram sequence */
+            uint32_t    ack;    /* ack sequence */
+            uint32_t    ts;     /* timestamp */
+            uint16_t    wnd;    /* advertised window size */
+            uint16_t    len;    /* data length */
+            DATAGRAM_STATUS flag;
+            char        data[DATAGRAM_DATASIZE];
+        };
+
+        The DATAGRAM_STATUS type is one byte that indicate the flag of
+        datagram.
+
+        typedef struct {
+            BITFIELD8   eof : 1; /* eof flag */
+            BITFIELD8   fln : 1; /* filename flag */
+            BITFIELD8   pot : 1; /* port flag */
+            BITFIELD8   wnd : 1; /* window update flag */
+            BITFIELD8   pob : 1; /* window probe flag */
+            BITFIELD8   r05 : 1;
+            BITFIELD8   r06 : 1;
+            BITFIELD8   r07 : 1;
+        } DATAGRAM_STATUS;
+
+        The header of the datagram has 17 bytes, while the data part can be
+        at most 495 bytes.
+
+    f.  Transmitting file: Sliding window
+        In our program, the sender sliding window is consecutive. In that case,
+        the sender window can be simplified as a linked list of datagrams. We
+        define sender_window structure in udpfile.h as following:
+
+        struct sender_window {
+            struct filedatagram     datagram;
+            struct sender_window    *next;
+        };
+
+        We have 3 pointers of sender_window: send_head points to the first
+        datagram in the window (also indicates the oldest unacknowledged
+        datagram), send_now points to the next datagram need to send if no
+        timeout or fast retransmission occurs, send_tail points to the last
+        datagram in the window to help Dg_serv_buffer function to read more
+        data into buffer.
+
+        We send datagram basing on the content in sender window in one work
+        cycle of function Dg_serv_file.
+        i)  If a timout or fast retransmission occurs, always transmit the
+            oldest datagram in the window (pointed by swnd_head);
+        ii) If there are more datagrams can be sent, transmit from swnd_now,
+            but the sequence number can not exceed the head sequence number
+            plus the number of datagrams can be sent.
+        When receives an ACK, the server will free acknowledged datagrams from
+        sender window and buffer more data (if there is). This ACK action in
+        function Dg_serv_ack has also handle several more things related to
+        RTO and congestion control. See Transmitting file: Retransmission
+        timeout section and Transmitting file: Congestion control section for
+        more information.
+
+    g.  Transmitting file: Retransmission timeout
+        The code of RTT and RTO mechanisms are in rtt.c and unprtt.h.
+        We modify the type of all members in rtt_info structure to uint32_t.
+        In rtt_info, the number of rtt_rtt rtt_srtt rtt_rttvar and rtt_rto is
+        in milliseconds rather than seconds. And rtt_srtt is eight times of
+        its real value while rtt_rttvar is four times of its real value. The
+        min RTO is 1000 milliseconds and max RTO is 3000 milliseconds. The max
+        number of retries is 12.
+        We also modify function rtt_stop function in rtt.c. The calculation in
+        rtt_stop now becomes integer arithmetic operations. We also use shift
+        operation instead of multiplication to increase the speed.
+        The server uses IPC from signal handler to function with pipe. The
+        timer is set by setitimer function in milliseconds. When thetimeout
+        occurs, the signal handler write one byte to previously created pipe.
+        The main work cycle in Dg_serv_file will only response to it when
+        expecting an ACK or a timeout using select. Thus we avoid the
+        unexpected interrupt situation in long system call if we use goto or
+        siglongjmp.
+        If an ACK is received, the server updates the RTO according to the
+        timestamp the datagram echoed. If a timeout occurs, the server resends
+        the time-out datagram and waits for a double RTO time. After 12
+        unsuccessful retries, the server gives up and terminates.
+
+    h.  Transmitting file: Congestion control
+        The code of congestion control is in rtserv.c. The functions are:
+        - slow_start            : slow start algorithm
+        - congestion_avoidance  : congestion avoidance algorithm
+        - cc_timeout            : timeout handle function
+        - cc_init               : initialization function
+        - cc_wnd & cc_updwnd    : get advertised window and update it
+        - cc_ack                : ack handle function
+
+        The server only initialize the congestion control part when starting
+        sending file. By default, the cwnd is set to 1 and ssthresh is set
+        to awnd (received in port number ack datagram).
+
+        The slow start algorithm operates by incrementing cwnd by N for a good
+        ACK, where N is the number of previously unacknowledged datagrams
+        ACKed by the received "good" ACK. If this ACK will lead cwnd to exceed
+        ssthresh, the algorithm will split the process to slow start phase and
+        congestion avoidance phase.
+
+        The congestion avoidance algorithm increase cwnd=K by 1 if K new
+        datagrams is ACKed. We use a counter ca_c to remeber how many good
+        ACKs have been received.
+
+        If a timeout occurs, cc_timeout function set ssthresh to half of cwnd,
+        and cwnd is down to 1.
+
+        The server handle ACK in cc_ack. We use dup_c to remeber the duplicate
+        number of an ACK.
+        i)  If the congestion control part is in fast recovery mode and another
+            duplicate ACK is received, cwnd is increased by 1. (Fast recovery)
+        ii) If the duplicate counter is 3, we cut ssthresh to half of cwnd and
+            goes into fast recovery mode. And also, we judge that the oldest
+            datagram needs to be resent. We use a flag fr_flag to notify the
+            work cycle in Dg_serv_file that fast retransmission need to be
+            performed. (Fast retransmission)
+        iii)If a new ACK is recevied and the congestion is in fast recovery
+            mode, we set cwnd to ssthresh and go into congestion avoidance.
+        iv) Otherwise, we perform slow start or congestion avoidance algorithm
+            according to the relationship between cwnd and ssthresh.
+
+    i.  Transmitting file: Window probe
+        Although the client can spontaneously send a window update datagram
+        when the process consumes the buffer and the window size becomes
+        non-zero, this window update datagram can be lost to. This datagram
+        is an ACK one which is not backed up by RTO mechanism. In that case,
+        the server starts a persist timer to probe the window size when the
+        client informs the server that free window is zero.
+        The probeClientWindow function in dgserv.c set up a timer to send a
+        probe every 200 milliseconds until a non-zero window size is
+        received.
+
+    j.  Transmitting file: Work cycle
+        After all important components of Dg_serv_file are stated above, now
+        we describe the work cycle.
+
+        - Call cc_wnd to get the number of datagrams can be sent in one cycle,
+          start to probe the window if the number is zero
+        - Ready to send datagram, call rtt_newpack
+        - If there is a fast retransmission datagram, send it and call
+          setAlarm to start the timeout timer
+        - Send other datagrams in order, set timer if needed
+        - Use select to monitor the socket and the pipe. Resend the datagram
+          if a timeout occurs. Exit if run out of retry number. Call
+          Dg_serv_ack to process ACK if an ACK is received
+        - If there is other datagram to send, go to next cycle from start
+        = Close file and exit
+
+        This is only a brief description. Some details are decomposed to
+        different sections above. For more details, see the comments in the
+        code files: dgserv.c, rtt.c, rtserv.c .
+
+    k.  Ending transmission
+        We have defined a EOF flag in the datagram header sending to the
+        client. When the client received the datagram with EOF flag, it will
+        be notified that the file transmission has finished.
+        Also in server part, we have SIG_CHLD signal handler in udpserver.c.
+        The signal handler will remove registered item in process_info
+        structure and terminate the child process correctly.

@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-13 10:01:16
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-24 11:02:28
+* @Last Modified time: 2015-10-25 18:59:13
 *
 * File:         rtserv.c
 * Description:  Reliable Transmission Server C file
@@ -36,7 +36,7 @@ uint16_t    ca_c;       // congestion avoidance counter
  *
  *  # This is a static inline function
  *  Congestion Avoidance algorithm in Congestion Control
- *  lin- with respect to time
+ *  Increase linear with the time
  *  Modification in A2:
  *      Add a new variable ca_c (congestion avoidance counter).
  *      When ca_c reachs cwnd, the cwnd will add by 1 and ca_c will be set
@@ -69,7 +69,7 @@ static inline void congestion_avoidance() {
  *
  *  # This is a static inline function
  *  Slow Start algorithm in Congestion Control
- *  lin- with respect to time
+ *  Increase exponentially with the time
  *  Modification in A2:
  *      If new ACK will cause cwnd exceeds ssthresh in slow start algorithm,
  *      this function will split the process into slow start phase and
@@ -78,7 +78,7 @@ static inline void congestion_avoidance() {
  */
 static inline void slow_start() {
     // for a good ACK, slow start operates by incrementing cwnd by N
-    // N is the number of previously unacknowledged bytes ACKed by the received "good" ACK
+    // N is the number of previously unacknowledged datagrams ACKed by the received "good" ACK
     if (cwnd + this_ack - last_ack > ssthresh) {
         // If after this ACKs, cwnd will go above ssthresh
         // split the process to slow start phase and congestion avoidance phase
@@ -241,7 +241,7 @@ uint16_t cc_ack(uint32_t seq, uint16_t wnd, uint8_t flag, uint8_t *fr_flag) {
     if (flag == 1)
         dup_c = 0;
 
-    printf("[Server Child #%d]: CC ACK. (ACK = %d, awnd = %d, dup_c = %d)\n", pid, seq, wnd, dup_c);
+    printf("[Server Child #%d]: CC ACK. (ACK = %d, awnd = %d, dup_c = %d, wnd=%d)\n", pid, seq, wnd, dup_c, flag);
 
     if (dup_c > 3 && fast_rec == 1) {
         // fast recovery

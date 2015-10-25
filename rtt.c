@@ -81,7 +81,7 @@ void rtt_stop(struct rtt_info *ptr, uint32_t ms) {
  * Return -1 if timeout times more than RTT_MAXNREXMT
  */
 int rtt_timeout(struct rtt_info *ptr) {
-    ptr->rtt_rto *= 2; /* next RTO */
+    ptr->rtt_rto <<= 1; /* next RTO */
     ptr->rtt_rto = rtt_minmax(ptr->rtt_rto);
 
     if (++ptr->rtt_nrexmt > RTT_MAXNREXMT)

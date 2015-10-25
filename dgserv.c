@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-25 12:13:28
+* @Last Modified time: 2015-10-25 19:27:31
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -201,6 +201,9 @@ void Dg_serv_buffer(int size) {
         // set head if head is NULL
         if (swnd_head == NULL)
             swnd_head = swnd;
+        // set now if now is NULL
+        if (swnd_now == NULL)
+            swnd_now = swnd;
     }
 }
 
@@ -224,7 +227,8 @@ void Dg_serv_ack(int sockfd, uint8_t *fr_flag) {
     Dg_serv_read(sockfd, &FD);
 
     printf("[Server Child #%d]: Received ACK #%d (rtt = %d).\n", pid, FD.ack, rtt_ts(&rttinfo) - FD.ts);
-    rtt_stop(&rttinfo, rtt_ts(&rttinfo) - FD.ts);
+    if (FD.ts > 0)
+        rtt_stop(&rttinfo, rtt_ts(&rttinfo) - FD.ts);
     cc_ack(FD.ack, FD.wnd, FD.flag.wnd, fr_flag);
 
     // free ACKed datagram from head
@@ -272,6 +276,7 @@ uint16_t probeClientWindow(int sockfd, uint8_t *fr_flag) {
 probeagain:
     Dg_serv_write(sockfd, &FD);
     setAlarm(PERSIST_TIMER);
+    printf("[Server Child #%d]: Send window probe.\n", pid);
 
     for ( ; ; ) {
         FD_ZERO(&fds);
@@ -368,8 +373,6 @@ int Dg_serv_file(int sockfd, char *filename, int max_winsize) {
             max_sendsize--;
         }
 
-        if (swnd_now == NULL && swnd_head != NULL)
-            swnd_now = swnd_head;
         // can only transmit cc_wnd() datagrams from swnd_head: now.seq < head.seq + cc_wnd()
         while (max_sendsize > 0 && swnd_now && swnd_now->datagram.seq < swnd_head->datagram.seq + cc_wnd()) {
             // after (possible) retransmit, if sendsize > 0, send more datagrams

@@ -17,8 +17,6 @@ get_ifi_info_plus.o: get_ifi_info_plus.c
 dgutils.o: dgutils.c
 	${CC} ${CFLAGS} -c dgutils.c
 
-# server uses the thread-safe version of readline.c
-
 dgserv.o: dgserv.c
 	${CC} ${CFLAGS} -c dgserv.c
 
@@ -48,15 +46,9 @@ dgbuffer.o: dgbuffer.c
 dgcli_impl.o: dgcli_impl.c
 	${CC} ${CFLAGS} -c dgcli_impl.c
 
-client: udpclient.o readline.o get_ifi_info_plus.o dgutils.o dgcli.o dgbuffer.o dgcli_impl.o
-	${CC} ${FLAGS} -o client udpclient.o readline.o get_ifi_info_plus.o dgutils.o dgcli.o dgbuffer.o dgcli_impl.o ${LIBS}
-
-
-# pick up the thread-safe version of readline.c from directory "threads"
-
-readline.o: ${UNP_DIR}/threads/readline.c
-	${CC} ${CFLAGS} -c ${UNP_DIR}/threads/readline.c
+client: udpclient.o get_ifi_info_plus.o dgutils.o dgcli.o dgbuffer.o dgcli_impl.o
+	${CC} ${FLAGS} -o client udpclient.o get_ifi_info_plus.o dgutils.o dgcli.o dgbuffer.o dgcli_impl.o ${LIBS}
 
 clean:
-	rm server udpserver.o client udpclient.o get_ifi_info_plus.o readline.o dgutils.o dgcli.o dgserv.o rtserv.o dgbuffer.o dgcli_impl.o rtt.o
+	rm server udpserver.o client udpclient.o get_ifi_info_plus.o dgutils.o dgcli.o dgserv.o rtserv.o dgbuffer.o dgcli_impl.o rtt.o
 

@@ -22,7 +22,6 @@ struct socket_info {
 
 typedef unsigned char BITFIELD8;
 typedef struct {
-    /* common flags */
     BITFIELD8   eof : 1; /* eof flag */
     BITFIELD8   fln : 1; /* filename flag */
     BITFIELD8   pot : 1; /* port flag */
