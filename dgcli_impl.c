@@ -232,6 +232,20 @@ int SendDgSrvNewPortAck(dg_client *cli, struct filedatagram *data)
     return 0;
 }
 
+void SendDgSrvFin(dg_client *cli, uint32_t ack)
+{
+    struct filedatagram dg;
+    // init filedatagram
+    bzero(&dg, sizeof(dg));
+    dg.seq = cli->seq++;
+    dg.ack = ack;
+    dg.flag.eof = 1;
+    dg.len = 0;
+
+    if (DgRandom() > cli->arg->p)
+        Dg_writepacket(cli->sock, &dg);
+}
+
 // thread of Print file content
 void *PrintOutThread(void *arg)
 {
@@ -277,6 +291,8 @@ void *PrintOutThread(void *arg)
     }
 
     printf("[Client]: Print thread #%d exited\n", pthread_self());
+
+    //SendDgSrvFin(cli, fd.seq + 1);
 
     exit(0);
 }
@@ -462,7 +478,6 @@ int StartDgCli(dg_client *cli)
             // out of order, send duplicate ack
             SendDgSrvAck(cli, ret, cli->buf->ts, cli->buf->rwnd.win);
         }
-        else continue;
 
         // get datagram from buffer
         GetDatagram(cli, 0);

@@ -146,27 +146,33 @@ bool DgFifoFull(dg_fifo *fifo)
 
 dg_rcv_buf *CreateDgRcvBuf(int wndSize)
 {
-    dg_rcv_buf *rcvBuf = malloc(sizeof(dg_rcv_buf));
-    rcvBuf->frameSize = 2 * wndSize;
-    rcvBuf->firstSeq = 0;
-    int size = rcvBuf->frameSize * sizeof(struct filedatagram);
-    rcvBuf->buffer = malloc(size);
-    memset(rcvBuf->buffer, 0, size);
+    dg_rcv_buf *buf = malloc(sizeof(dg_rcv_buf));
+    buf->frameSize = 2 * wndSize;
+    buf->firstSeq = 0;
+    int size = buf->frameSize * sizeof(struct filedatagram);
+    buf->buffer = malloc(size);
+    memset(buf->buffer, 0, size);
     
     // initial sliding window index
-    rcvBuf->rwnd.base = 0;
-    rcvBuf->rwnd.next = 0;
-    rcvBuf->rwnd.top = wndSize;
-    rcvBuf->rwnd.size = wndSize;
-    rcvBuf->rwnd.win = wndSize;
+    buf->rwnd.base = 0;
+    buf->rwnd.next = 0;
+    buf->rwnd.top = wndSize;
+    buf->rwnd.size = wndSize;
+    buf->rwnd.win = wndSize;
 
-    return rcvBuf;
+    // initial mutex
+    Pthread_mutex_init(&buf->mutex, NULL);
+
+    return buf;
 }
 
 void DestroyDgRcvBuf(dg_rcv_buf *buf)
 {
     if (buf == NULL)
         return;
+
+    // destroy mutex
+    pthread_mutex_destroy(&buf->mutex);
 
     if (buf->buffer)
     {
@@ -218,7 +224,7 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data)
         printf("[Client]: Receive datagram, seq=%d, already in buffer\n", data->seq);
         return -2;
     }
-
+    
     dg_sliding_wnd *rwnd = &buf->rwnd;
     if (buf->firstSeq == 0)
     {
@@ -235,7 +241,7 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data)
         if (CheckSeqRange(buf, idx) < 0)
         {
             printf("[Client]: Receive datagram, seq=%d out of range, win[%d, %d] next=%d win=%d\n",
-                data->seq, buf->rwnd.base, buf->rwnd.top, buf->rwnd.next, buf->rwnd.win);
+                data->seq, buf->rwnd.base, buf->rwnd.top, buf->rwnd.next, buf->rwnd.win);            
             return -3;
         }
 
@@ -264,7 +270,7 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data)
 
     printf("[Debug]: Receive datagram #%d, seq=%d ack=%d ts=%d win=%d\n", 
         data->seq, data->seq, data->ack, data->ts, buf->rwnd.win);
-    
+ 
     return ack;
 }
 
@@ -272,6 +278,7 @@ int ReadDgRcvBuf(dg_rcv_buf *buf, struct filedatagram *data, int need)
 {
     int flag = 0;
     int inOrderPkt = 0;
+
     if (buf->rwnd.next < buf->rwnd.base)
         inOrderPkt = (buf->rwnd.next + buf->frameSize) - buf->rwnd.base;
     else

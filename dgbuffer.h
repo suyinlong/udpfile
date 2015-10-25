@@ -105,6 +105,7 @@ typedef struct dg_rcv_buf_t
     uint32_t        firstSeq;       // first seq number
     uint32_t        nextSeq;        // expected seq number
     uint32_t        ts;             // ack's timestamp
+    pthread_mutex_t	mutex;          // mutex value
     dg_sliding_wnd  rwnd;           // receive sliding window
     struct filedatagram *buffer;    // buffer array, the size is frameSize
 }dg_rcv_buf;
