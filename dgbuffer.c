@@ -33,6 +33,13 @@ dg_fifo *CreateDgFifo(int size)
 
 void DestroyDgFifo(dg_fifo *fifo)
 {
+    if (fifo == NULL)
+        return;
+
+    // destroy mutex
+    pthread_mutex_destroy(&fifo->mutex);
+
+    // free the list nodes
     dg_node *node = fifo->head;
     for (; node != NULL; node = node->next)
     {
@@ -40,14 +47,9 @@ void DestroyDgFifo(dg_fifo *fifo)
             free(node->data);
     }
 
-    if (fifo)
-    {
-        free(fifo);
-        fifo = NULL;
-    }
-
-    // destroy mutex
-    pthread_mutex_destroy(&fifo->mutex);
+    // free dg_fifo object
+    free(fifo);
+    fifo = NULL;   
 }
 
 int WriteDgFifo(dg_fifo *fifo, const void *data, int dataSize)
@@ -163,17 +165,18 @@ dg_rcv_buf *CreateDgRcvBuf(int wndSize)
 
 void DestroyDgRcvBuf(dg_rcv_buf *buf)
 {
-    if (buf && buf->buffer)
+    if (buf == NULL)
+        return;
+
+    if (buf->buffer)
     {
         free(buf->buffer);
         buf->buffer = NULL;
     }
 
-    if (buf)
-    {
-        free(buf);
-        buf = NULL;
-    }
+    // free dg_rcv_buf object
+    free(buf);
+    buf = NULL;
 }
 
 // check current seq number in sliding window
@@ -259,7 +262,8 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data)
     memcpy(&buf->buffer[idx], data, sizeof(struct filedatagram));
     rwnd->win--;
 
-    printf("[Debug]: Receive datagram, seq=%d ack=%d ts=%d win=%d\n", data->seq, data->ack, data->ts, buf->rwnd.win);
+    printf("[Debug]: Receive datagram #%d, seq=%d ack=%d ts=%d win=%d\n", 
+        data->seq, data->seq, data->ack, data->ts, buf->rwnd.win);
     
     return ack;
 }
@@ -304,7 +308,7 @@ int ReadDgRcvBuf(dg_rcv_buf *buf, struct filedatagram *data, int need)
         buf->rwnd.top = (buf->rwnd.top + 1) % buf->frameSize;
         buf->rwnd.win++;
 
-        printf("[Debug]: Read buffer, seq=%d ack=%d ts=%d win=%d\n", data->seq, data->ack, data->ts, buf->rwnd.win);
+        //printf("[Debug]: Read buffer, seq=%d ack=%d ts=%d win=%d\n", data->seq, data->ack, data->ts, buf->rwnd.win);
 
         return --inOrderPkt;
     }
