@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-24 22:01:19
+* @Last Modified time: 2015-10-25 12:13:28
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -245,7 +245,7 @@ void Dg_serv_ack(int sockfd, uint8_t *fr_flag) {
         swnd = swnd_head;
     }
 
-    // printf("[Server Child #%d]: Call buffer %d.\n", pid, k);
+    //printf("[Server Child #%d]: Call buffer %d.\n", pid, k);
     Dg_serv_buffer(k);
 }
 
@@ -367,6 +367,9 @@ int Dg_serv_file(int sockfd, char *filename, int max_winsize) {
             printf("[Server Child #%d]: Resend datagram #%d \x1b[43;31m(Fast Retransmission).\x1B[0;0m\n", pid, swnd_head->datagram.seq);
             max_sendsize--;
         }
+
+        if (swnd_now == NULL && swnd_head != NULL)
+            swnd_now = swnd_head;
         // can only transmit cc_wnd() datagrams from swnd_head: now.seq < head.seq + cc_wnd()
         while (max_sendsize > 0 && swnd_now && swnd_now->datagram.seq < swnd_head->datagram.seq + cc_wnd()) {
             // after (possible) retransmit, if sendsize > 0, send more datagrams
@@ -381,6 +384,7 @@ int Dg_serv_file(int sockfd, char *filename, int max_winsize) {
             swnd_now = swnd_now->next;
             max_sendsize--;
         }
+
 selectagain:
         // loop for select
         for ( ; ; ) {
