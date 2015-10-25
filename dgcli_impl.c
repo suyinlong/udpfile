@@ -16,7 +16,7 @@
 #define RANDOM_MAX       0x7FFFFFFF  // 2^31 - 1
 
 
-void   SendDgSrvAck(dg_client *cli, uint32_t ack, uint32_t ts, int wnd, int line);
+//void   SendDgSrvAck(dg_client *cli, uint32_t ack, uint32_t ts, int wnd, int line);
 void   GetDatagram(dg_client *cli, int need);
 double DgRandom();
 
@@ -175,7 +175,7 @@ int SendDgSrvFilenameReq(dg_client *cli)
 }
 
 // send ack to server
-void SendDgSrvAck(dg_client *cli, uint32_t ack, uint32_t ts, int wnd, int line)
+void SendDgSrvAck(dg_client *cli, uint32_t ack, uint32_t ts, int wnd, int wndFlag, int line)
 {
     struct filedatagram dg;
     // init filedatagram
@@ -184,7 +184,7 @@ void SendDgSrvAck(dg_client *cli, uint32_t ack, uint32_t ts, int wnd, int line)
     dg.seq = cli->seq++;
     dg.ack = ack;
     dg.ts = ts;
-    dg.flag.wnd = 1;
+    dg.flag.wnd = wndFlag;
     dg.wnd = wnd;
     dg.len = 0;
     cli->buf->acked = ack;
@@ -383,6 +383,9 @@ int ConnectDgServer(dg_client *cli)
 }
 
 // get datagram from buffer
+// 1. check the receiver window
+// 2. if there is in-order segments, put those segments to fifo
+// 3. if there is more than 2 in-order segments, send ack to server   
 void GetDatagram(dg_client *cli, int need)
 {
     int ret = 0;
@@ -406,7 +409,7 @@ void GetDatagram(dg_client *cli, int need)
     if (ret != -1)
     {
         // segments in-order, send ack to server 
-        SendDgSrvAck(cli, dg.seq + 1, dg.ts, cli->buf->rwnd.win, __LINE__);
+        SendDgSrvAck(cli, dg.seq + 1, 0/*dg.ts*/, cli->buf->rwnd.win, 1, __LINE__);
     }
 }
 
@@ -470,7 +473,7 @@ int StartDgCli(dg_client *cli)
         if (dg.flag.pob == 1)
         {
             // send current window size
-            SendDgSrvAck(cli, cli->buf->nextSeq, dg.ts, cli->buf->rwnd.win, __LINE__);
+            SendDgSrvAck(cli, cli->buf->nextSeq, dg.ts, cli->buf->rwnd.win, 1, __LINE__);
             continue;
         }        
         
@@ -480,20 +483,19 @@ int StartDgCli(dg_client *cli)
         if (ack == -1)
         {
             // sliding window size is zero
-            SendDgSrvAck(cli, cli->buf->nextSeq, dg.ts, cli->buf->rwnd.win, __LINE__);
+            SendDgSrvAck(cli, cli->buf->nextSeq, dg.ts, cli->buf->rwnd.win, 1, __LINE__);
             continue;
         }
         else if (ack > 0)
         {
             // out of order, send duplicate ack
-            SendDgSrvAck(cli, ack, cli->buf->ts, cli->buf->rwnd.win, __LINE__);
+            SendDgSrvAck(cli, ack, cli->buf->ts, cli->buf->rwnd.win, 0, __LINE__);
         }
 
         // get datagram from buffer
-        //GetDatagram(cli, 0);
         if (GetInOrderAck(cli->buf, &ack, &ts) == 0)
         {
-            SendDgSrvAck(cli, ack, ts, cli->buf->rwnd.win, __LINE__);
+            SendDgSrvAck(cli, ack, ts, cli->buf->rwnd.win, 0, __LINE__);
         }
     }
 
