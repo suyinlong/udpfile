@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-24 10:44:56
+* @Last Modified time: 2015-10-24 22:01:19
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -261,6 +261,9 @@ void Dg_serv_ack(int sockfd, uint8_t *fr_flag) {
  * --------------------------------------------------------------------------
  */
 uint16_t probeClientWindow(int sockfd, uint8_t *fr_flag) {
+    int     r;
+    char    c;
+    fd_set  fds;
     struct filedatagram FD;
 
     bzero(&FD, sizeof(FD));
@@ -271,8 +274,6 @@ probeagain:
     setAlarm(PERSIST_TIMER);
 
     for ( ; ; ) {
-        int r;
-        fd_set fds;
         FD_ZERO(&fds);
         FD_SET(sockfd, &fds);
         FD_SET(pfd[0], &fds);
@@ -287,9 +288,7 @@ probeagain:
                 return cc_wnd();
         } else if (FD_ISSET(pfd[0], &fds)) {
             // timeout
-            char c;
             Read(pfd[0], &c, 1);
-
             goto probeagain;
         }
         if (r == -1)
@@ -327,7 +326,10 @@ probeagain:
  * --------------------------------------------------------------------------
  */
 int Dg_serv_file(int sockfd, char *filename, int max_winsize) {
-    char    alarm_set = 0;
+    int     r;
+    char    c;
+    fd_set  fds;
+    char        alarm_set       = 0; // alarm set flag
     uint16_t    max_sendsize    = 0;
     uint8_t     fr_flag         = 0; // fast restransmission flag
 
@@ -365,7 +367,8 @@ int Dg_serv_file(int sockfd, char *filename, int max_winsize) {
             printf("[Server Child #%d]: Resend datagram #%d \x1b[43;31m(Fast Retransmission).\x1B[0;0m\n", pid, swnd_head->datagram.seq);
             max_sendsize--;
         }
-        while (max_sendsize > 0 && swnd_now) {
+        // can only transmit cc_wnd() datagrams from swnd_head: now.seq < head.seq + cc_wnd()
+        while (max_sendsize > 0 && swnd_now && swnd_now->datagram.seq < swnd_head->datagram.seq + cc_wnd()) {
             // after (possible) retransmit, if sendsize > 0, send more datagrams
             Dg_serv_write(sockfd, &swnd_now->datagram);
 
@@ -381,8 +384,6 @@ int Dg_serv_file(int sockfd, char *filename, int max_winsize) {
 selectagain:
         // loop for select
         for ( ; ; ) {
-            int r;
-            fd_set fds;
             FD_ZERO(&fds);
             FD_SET(sockfd, &fds);
             FD_SET(pfd[0], &fds);
@@ -396,7 +397,6 @@ selectagain:
                 break;
             } else if (FD_ISSET(pfd[0], &fds)) {
                 // timeout
-                char c;
                 Read(pfd[0], &c, 1);
                 if (rtt_timeout(&rttinfo) < 0) {
                     printf("[Server Child #%d]: \x1b[41;33mTerminate for file datagram timeout.\x1B[0;0m\n", pid);
@@ -438,7 +438,9 @@ selectagain:
  * --------------------------------------------------------------------------
  */
 int Dg_serv_port(int port, int listeningsockfd, int sockfd, struct sockaddr *client) {
-    char s_port[6], port_flag = 0;
+    char    c, s_port[6], port_flag = 0;;
+    int     r;
+    fd_set  fds;
     struct filedatagram FD;
 
     printf("[Server Child #%d]: Waiting for port number acknowledged from client...\n", pid);
@@ -463,8 +465,7 @@ sendportagain:
     setAlarm(rtt_start(&rttinfo));
 
     for ( ; ; ) {
-        int r;
-        fd_set fds;
+
         FD_ZERO(&fds);
         FD_SET(sockfd, &fds);
         FD_SET(pfd[0], &fds);
@@ -490,7 +491,6 @@ sendportagain:
 
         } else if (FD_ISSET(pfd[0], &fds)) {
             // timeout
-            char c;
             Read(pfd[0], &c, 1);
             if (rtt_timeout(&rttinfo) < 0) {
                 printf("[Server Child #%d]: \x1b[41;33mTerminate for port datagram timeout.\x1B[0;0m\n", pid);
@@ -525,13 +525,10 @@ sendportagain:
  */
 void Dg_serv(int listeningsockfd, struct socket_info *sock_head, struct sockaddr *server, struct sockaddr *client, char *filename, int max_winsize) {
     int             local = 0, sockfd, len;
-
     const int       on = 1;
-    struct filedatagram     FD;
     struct sockaddr_in      servaddr;
     struct sockaddr_storage ss;
     struct socket_info      *sock = NULL;
-
 
     pid = getpid();
 

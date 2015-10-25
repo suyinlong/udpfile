@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-13 10:01:16
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-24 01:32:04
+* @Last Modified time: 2015-10-24 11:02:28
 *
 * File:         rtserv.c
 * Description:  Reliable Transmission Server C file
@@ -268,7 +268,6 @@ uint16_t cc_ack(uint32_t seq, uint16_t wnd, uint8_t flag, uint8_t *fr_flag) {
             congestion_avoidance();
     }
 
-    // TODO: use ts to update RCC and RTO
     last_ack = this_ack;
 
     return min(cwnd, awnd);
