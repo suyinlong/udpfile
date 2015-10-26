@@ -1,3 +1,13 @@
+/*
+* @Author: Yinlong Su
+* @Date:   2015-10-23 12:43:25
+* @Last Modified by:   Yinlong Su
+* @Last Modified time: 2015-10-26 17:04:53
+*
+* File:         dgutils.c
+* Description:  Datagram Utils C file
+*/
+
 #include "unprtt.h"
 
 /*
@@ -68,10 +78,10 @@ void rtt_stop(struct rtt_info *ptr, uint32_t ms) {
     if (ptr->rtt_rtt < 0)
         ptr->rtt_rtt = - ptr->rtt_rtt;
     ptr->rtt_rtt -= (ptr->rtt_rttvar >> 2);
-    ptr->rtt_rttvar += ptr->rtt_rtt;
+    ptr->rtt_rttvar += ptr->rtt_rtt; printf(", \x1b[47;30mrto = %d -> ", ptr->rtt_rto);
     ptr->rtt_rto = (ptr->rtt_srtt >> 3) + ptr->rtt_rttvar;
 
-    ptr->rtt_rto = rtt_minmax(RTT_RTOCALC(ptr));
+    ptr->rtt_rto = rtt_minmax(RTT_RTOCALC(ptr)); printf("%d\x1b[0;0m\n", ptr->rtt_rto);
 
 }
 

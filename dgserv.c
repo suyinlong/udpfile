@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-26 11:01:45
+* @Last Modified time: 2015-10-26 16:57:14
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -28,7 +28,7 @@ struct sender_window *swnd_head = NULL, *swnd_now = NULL, *swnd_tail = NULL;
  *  @param  : int                   sockfd
  *            struct filedatagram   *datagram
  *  @return : void
- *  @see    :
+ *  @see    : function#Dg_readpacket
  *
  *  For connected socket
  * --------------------------------------------------------------------------
@@ -44,8 +44,9 @@ void Dg_serv_read(int sockfd, struct filedatagram *datagram) {
  *
  *  @param  : int                   sockfd
  *            struct filedatagram   *datagram
- *  @return : int
- *  @see    :
+ *  @return : int   # -1 if read error
+ *                  # otherwise, return the length of bytes read
+ *  @see    : function#Dg_readpacket_nb
  *
  *  For connected socket
  * --------------------------------------------------------------------------
@@ -62,9 +63,9 @@ int Dg_serv_read_nb(int sockfd, struct filedatagram *datagram) {
  *  @param  : int                   sockfd
  *            struct filedatagram   *datagram
  *  @return : void
- *  @see    :
+ *  @see    : function#Dg_writepacket
  *
- *  For connected socket
+ *  For connected socket, fill the timestamp and send it
  * --------------------------------------------------------------------------
  */
 void Dg_serv_write(int sockfd, struct filedatagram *datagram) {
@@ -82,9 +83,9 @@ void Dg_serv_write(int sockfd, struct filedatagram *datagram) {
  *            socklen_t             clilen
  *            struct filedatagram   *datagram
  *  @return : void
- *  @see    :
+ *  @see    : function#Dg_sendpacket
  *
- *  For unconnected socket
+ *  For unconnected socket, fill the timestamp and send it
  * --------------------------------------------------------------------------
  */
 void Dg_serv_send(int sockfd, const SA* cliaddr, socklen_t clilen, struct filedatagram *datagram) {
@@ -135,11 +136,11 @@ static inline void setAlarm(uint32_t ms) {
  *
  *  Server local judge function
  *
- *  @param  : struct socket_info *  sock_head
- *            struct sockaddr *     server
- *            struct sockaddr *     client
- *  @return : int
- *  @see    :
+ *  @param  : struct socket_info    *sock_head
+ *            struct sockaddr       *server
+ *            struct sockaddr       *client
+ *  @return : int   # 1 if the server and the client are local
+ *                  # 0 if otherwise
  *
  *  Check if the server and client are local
  * --------------------------------------------------------------------------
@@ -187,6 +188,7 @@ int checkLocal(struct socket_info *sock_head, struct sockaddr *server, struct so
  *
  *  @param  : int       size    # indicate buffer [size] more packets
  *  @return : void
+ *  @see    : struct#sender_window
  *
  *  Buffer datagrams in the sender window buffer
  * --------------------------------------------------------------------------
@@ -230,7 +232,7 @@ void Dg_serv_buffer(int size) {
  *  Server ACK handle function
  *
  *  @param  : int       sockfd
- *  @return : uint32_t  max_ack     # max ack number
+ *  @return : uint32_t  # max ack number
  *
  *  Receive datagram (ACK) and update RTO, cwnd and sliding window
  *  Set the socket to non-blocking to handle all received ACK
@@ -303,8 +305,8 @@ uint32_t Dg_serv_ack(int sockfd) {
  *
  *  Server window probe function
  *
- *  @param  : void
- *  @return : uint16_t max_sendsize
+ *  @param  : int       sockfd
+ *  @return : uint16_t  # rwnd/awnd receiver advertised window size
  *
  *  Sending window update probe to client, the interval is PERSIST_TIMER
  * --------------------------------------------------------------------------
@@ -356,8 +358,7 @@ probeagain:
  *            char *    filename
  *            int       max_winsize
  *            int       rwnd
- *  @return : int       0 = fail
- *  @see    : function#probeClientWindow
+ *  @return : int       # 0 = fail
  *
  *  1. Initialize:
  *      a. Open the requested file
@@ -478,10 +479,10 @@ selectagain:
  *  Server port number send function
  *
  *  @param  : int               port
- *            int               listeningsockfd
- *            int               sockfd
+ *            int               listeningsockfd # old socket
+ *            int               sockfd          # new private port socket
  *            struct sockaddr   *client
- *  @return : int       -1 = fail
+ *  @return : int               # -1 = fail
  *
  *  Use RTO mechanism to send port number
  *  If timeout, retry by sending port number to both listeningsockfd and
@@ -566,14 +567,14 @@ sendportagain:
  *  Server service function
  *
  *  @param  : int                   listeningsockfd
- *            struct socket_info *  sock_head
- *            struct sockaddr *     server
- *            struct sockaddr *     client
- *            char *                filename
+ *            struct socket_info    *sock_head
+ *            struct sockaddr       *server
+ *            struct sockaddr       *client
+ *            char                  *filename
  *  @return : void
- *  @see    :
  *
- *  Create new socket
+ *  Create new socket on new port number
+ *  Init rtt
  *  Send private port number
  * --------------------------------------------------------------------------
  */

@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-13 10:01:16
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-25 23:57:02
+* @Last Modified time: 2015-10-26 17:02:58
 *
 * File:         rtserv.c
 * Description:  Reliable Transmission Server C file
@@ -128,14 +128,14 @@ void cc_timeout() {
  *
  *  Congestion Avoidance initialization
  *
- *  @param  : uint16_t  : advertised receiver window size
- *            uint16_t  : max sender window size
+ *  @param  : uint16_t  advertised_wnd  # advertised receiver window size
+ *            uint16_t  max_wnd         # max sender window size
  *  @return : void
  *
  *  Congestion Avoidance initialization
  *
- *  Set relevant variables to 1 or 0
  *  Accept awnd and mwnd from the arguments
+ *  Set relevant variables
  *  cwnd is set to iwnd (CC_IWND is defined in udpfile.h) at beginning
  *  ssthresh is set to awnd by default (or CC_SSTHRESH defined in udpfile.h)
  * --------------------------------------------------------------------------
@@ -166,7 +166,7 @@ void cc_init(uint16_t advertised_wnd, uint16_t max_wnd) {
  *  Congestion Control window size
  *
  *  @param  : void
- *  @return : uint16_t  : the number of datagrams that can be sent
+ *  @return : uint16_t  # the number of datagrams that can be sent
  *
  *  Congestion Control window size function
  *
@@ -178,34 +178,15 @@ uint16_t cc_wnd() {
 }
 
 /* --------------------------------------------------------------------------
- *  cc_updwnd
- *
- *  Congestion Control update window size
- *
- *  @param  : uint16_t  : advertised receiver window size
- *  @return : uint16_t  : the number of datagrams that can be sent
- *
- *  Congestion Control update window size function
- *
- *  Use to update awnd when server received the return window update datagram
- *      (with flag.wnd == 1, defined in udpfile.h)
- *  Return the min value of cwnd and awnd
- * --------------------------------------------------------------------------
- */
-uint16_t cc_updwnd(uint16_t wnd) {
-    awnd = wnd;
-    return min(cwnd, awnd);
-}
-
-/* --------------------------------------------------------------------------
  *  cc_ack
  *
  *  Congestion Control Acknowledgements Handle function
  *
- *  @param  : uint32_t  : ACK sequence number
- *            uint16_t  : advertised receiver window size
- *            uint8_t*  : fast retransmit flag (1=retransmit)
- *  @return : uint16_t  : the number of datagrams that can be sent
+ *  @param  : uint32_t  seq         # ACK sequence number
+ *            uint16_t  wnd         # advertised receiver window size
+ *            uint8_t   flag        # 1 if this ACK is a window update datagram
+ *            uint8_t   *fr_flag    # fast retransmit flag (1=retransmit)
+ *  @return : uint16_t  # the number of datagrams that can be sent
  *
  *  Congestion Control Acknowledgements Handler
  *
@@ -218,7 +199,7 @@ uint16_t cc_updwnd(uint16_t wnd) {
  *         recovery state:
  *             ssthresh = cwnd / 2
  *             cwnd = ssthresh + 3 (the window-inflation, not needed in A2)
- *             # set retransmission variable: fr_flag
+ *             # set fast retransmission variable: fr_flag
  *     (c) If new ACK received and server is in fast recovery state:
  *             cwnd = ssthresh
  *             # server exit fast recovery state and goes into congestion
