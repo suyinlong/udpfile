@@ -101,11 +101,14 @@ int RecvDataTimeout(int fd, void *data, int *size, int timeout, float p)
     Sigfunc *sigfunc;
     // set alarm
     sigfunc = Signal(SIGALRM, HandleRecvTimeout);
+    alarm(timeout);
+    /*
     if (alarm(timeout) != 0)
     {
         printf("[Client]: Alarm was already set.\n");
         return -1;
     }
+    */
 
     int	ret = 0;
     // read data 
@@ -219,6 +222,7 @@ int SendDgSrvNewPortAck(dg_client *cli, struct filedatagram *data)
     bzero(&rcvData, sizeof(rcvData));
     sndData.seq = cli->seq++;
     sndData.ack = 1;
+    sndData.wnd = cli->buf->rwnd.size;
     sndData.flag.pot = 1;
     sndData.len = 0;
 
