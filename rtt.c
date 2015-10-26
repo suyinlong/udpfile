@@ -45,7 +45,7 @@ uint32_t rtt_ts(struct rtt_info *ptr) {
 
     Gettimeofday(&tv, NULL);
     ts = ((tv.tv_sec - ptr->rtt_base) * 1000) + (tv.tv_usec / 1000);
-    return(ts);
+    return(ts+1);
 }
 
 void rtt_newpack(struct rtt_info *ptr) {

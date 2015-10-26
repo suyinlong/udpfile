@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-09 20:43:25
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-14 17:00:52
+* @Last Modified time: 2015-10-25 20:59:01
 *
 * File:         dgutils.c
 * Description:  Datagram Utils C file
@@ -90,4 +90,30 @@ void Dg_readpacket(int sockfd, struct filedatagram *datagram) {
     bzero(datagram, DATAGRAM_PAYLOAD);
     size_t n = Read(sockfd, buff, DATAGRAM_PAYLOAD);
     memcpy(datagram, buff, n);
+}
+
+/* --------------------------------------------------------------------------
+ *  Dg_readpacket_nb
+ *
+ *  Datagram read function (Non-blocking)
+ *
+ *  @param  : int sockfd,
+ *            struct filedatagram *datagram
+ *  @return : int
+ *
+ *  For the connected socket, use read() to receive packets instead of
+ *  recvfrom()
+ * --------------------------------------------------------------------------
+ */
+int Dg_readpacket_nb(int sockfd, struct filedatagram *datagram) {
+    char buff[DATAGRAM_PAYLOAD];
+
+    bzero(datagram, DATAGRAM_PAYLOAD);
+    int n = read(sockfd, buff, DATAGRAM_PAYLOAD);
+
+    if (n >= 0) {
+        memcpy(datagram, buff, n);
+        return n;
+    }
+    return -1;
 }

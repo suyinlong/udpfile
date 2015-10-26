@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-25 19:27:31
+* @Last Modified time: 2015-10-25 21:00:06
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -35,6 +35,23 @@ struct sender_window *swnd_head = NULL, *swnd_now = NULL, *swnd_tail = NULL;
  */
 void Dg_serv_read(int sockfd, struct filedatagram *datagram) {
     Dg_readpacket(sockfd, datagram);
+}
+
+/* --------------------------------------------------------------------------
+ *  Dg_cli_read_nb
+ *
+ *  Server datagram read function (Non-blocking)
+ *
+ *  @param  : int                   sockfd
+ *            struct filedatagram   *datagram
+ *  @return : int
+ *  @see    :
+ *
+ *  For connected socket
+ * --------------------------------------------------------------------------
+ */
+int Dg_serv_read_nb(int sockfd, struct filedatagram *datagram) {
+    return Dg_readpacket_nb(sockfd, datagram);
 }
 
 /* --------------------------------------------------------------------------
@@ -220,36 +237,46 @@ void Dg_serv_buffer(int size) {
  * --------------------------------------------------------------------------
  */
 void Dg_serv_ack(int sockfd, uint8_t *fr_flag) {
+    int flag, k = 0;
     struct sender_window *swnd;
     struct filedatagram FD;
 
     setAlarm(0);
-    Dg_serv_read(sockfd, &FD);
 
-    printf("[Server Child #%d]: Received ACK #%d (rtt = %d).\n", pid, FD.ack, rtt_ts(&rttinfo) - FD.ts);
-    if (FD.ts > 0)
-        rtt_stop(&rttinfo, rtt_ts(&rttinfo) - FD.ts);
-    cc_ack(FD.ack, FD.wnd, FD.flag.wnd, fr_flag);
+    // set to nonblocking
+    flag = Fcntl(sockfd, F_GETFL, 0);
+    Fcntl(sockfd, F_SETFL, flag | FNDELAY);
 
-    // free ACKed datagram from head
-    swnd = swnd_head;
-    int k = 0;
-    while (swnd && swnd->datagram.seq < FD.ack) {
-        k++;
+    while ((flag = Dg_serv_read_nb(sockfd, &FD)) >= 0) {
+        printf("[Server Child #%d]: Received ACK #%d (rtt = %d).\n", pid, FD.ack, ((FD.ts == 0) ? -1 : (rtt_ts(&rttinfo) - FD.ts)));
+        if (FD.ts > 0)
+            rtt_stop(&rttinfo, rtt_ts(&rttinfo) - FD.ts);
+        cc_ack(FD.ack, FD.wnd, FD.flag.wnd, fr_flag);
 
-        // after free, head should move forward
-        // if the tail is ACKed, set the tail to NULL
-        swnd_head = swnd->next;
-        if (swnd_tail == swnd)
-            swnd_tail = NULL;
-        //printf("[Server Child #%d]: Free datagram #%d, k=%d, next=%d.\n", pid, swnd->datagram.seq, k, swnd->next);
-        free(swnd);
-
-        // try next datagram, start from head
+        // free ACKed datagram from head
         swnd = swnd_head;
+        while (swnd && swnd->datagram.seq < FD.ack) {
+            k++;
+
+            // after free, head should move forward
+            // if the tail is ACKed, set the tail to NULL
+            swnd_head = swnd->next;
+            if (swnd_tail == swnd)
+                swnd_tail = NULL;
+            //printf("[Server Child #%d]: Free datagram #%d, k=%d, next=%d.\n", pid, swnd->datagram.seq, k, swnd->next);
+            free(swnd);
+
+            // try next datagram, start from head
+            swnd = swnd_head;
+        }
+
     }
 
-    //printf("[Server Child #%d]: Call buffer %d.\n", pid, k);
+    // set to blocking
+    flag = Fcntl(sockfd, F_GETFL, 0);
+    Fcntl(sockfd, F_SETFL, flag & ~FNDELAY);
+
+    // printf("[Server Child #%d]: Call buffer %d.\n", pid, k);
     Dg_serv_buffer(k);
 }
 

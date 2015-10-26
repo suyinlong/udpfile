@@ -1,6 +1,7 @@
 #ifndef __udpfile_h
 #define __udpfile_h
 
+#include <sys/file.h>
 #include "unp.h"
 #include "unpthread.h"
 #include "unpifiplus.h"
@@ -82,6 +83,7 @@ void Dg_recvpacket(int, struct sockaddr *, socklen_t *, struct filedatagram *);
 
 void Dg_writepacket(int, const struct filedatagram *);
 void Dg_readpacket(int, struct filedatagram *);
+int Dg_readpacket_nb(int, struct filedatagram *);
 
 void Dg_cli(int);
 
