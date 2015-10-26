@@ -223,8 +223,8 @@ This program is a UDP socket based file transfer services server and client.
         ii) If the duplicate counter is 3, we cut ssthresh to half of cwnd and
             goes into fast recovery mode. And also, we judge that the oldest
             datagram needs to be resent. We use a flag fr_flag to notify the
-            work cycle in Dg_serv_file that fast retransmission need to be
-            performed. (Fast retransmission)
+            ACK handle process in Dg_serv_ack that fast retransmission need to
+            be performed. (Fast retransmission)
         iii)If a new ACK is recevied and the congestion is in fast recovery
             mode, we set cwnd to ssthresh and go into congestion avoidance.
         iv) Otherwise, we perform slow start or congestion avoidance algorithm
@@ -248,9 +248,7 @@ This program is a UDP socket based file transfer services server and client.
         - Call cc_wnd to get the number of datagrams can be sent in one cycle,
           start to probe the window if the number is zero
         - Ready to send datagram, call rtt_newpack
-        - If there is a fast retransmission datagram, send it and call
-          setAlarm to start the timeout timer
-        - Send other datagrams in order, set timer if needed
+        - Send datagrams in order, set timer if needed
         - Use select to monitor the socket and the pipe. Resend the datagram
           if a timeout occurs. Exit if run out of retry number. Call
           Dg_serv_ack to process ACK if an ACK is received

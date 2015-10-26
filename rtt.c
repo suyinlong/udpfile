@@ -57,8 +57,6 @@ uint32_t rtt_start(struct rtt_info *ptr) {
 }
 
 void rtt_stop(struct rtt_info *ptr, uint32_t ms) {
-    double delta;
-
     ptr->rtt_rtt = ms; /* measured RTT in milliseconds */
 
 /*
