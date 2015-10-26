@@ -534,7 +534,10 @@ int StartDgCli(dg_client *cli)
             SendDgSrvAck(cli, cli->buf->nextSeq, dg.ts, cli->buf->rwnd.win, 1, __LINE__);
             continue;
         }
-        else if (ack > 0)
+        else if (ack == -2 || ack == -3)
+            continue;
+
+        if (ack > 0)
         {
             // out of order, send duplicate ack
             SendDgSrvAck(cli, ack, cli->buf->ts, cli->buf->rwnd.win, 0, __LINE__);
