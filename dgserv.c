@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-25 21:00:06
+* @Last Modified time: 2015-10-25 22:37:22
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -234,10 +234,13 @@ void Dg_serv_buffer(int size) {
  *  @return : void
  *
  *  Receive datagram (ACK) and update RTO, cwnd and sliding window
+ *  Set the socket to non-blocking to handle all received ACK
+ *  Fast retransmission if needed
  * --------------------------------------------------------------------------
  */
-void Dg_serv_ack(int sockfd, uint8_t *fr_flag) {
+void Dg_serv_ack(int sockfd) {
     int flag, k = 0;
+    uint8_t fr_flag = 0; // fast restransmission flag
     struct sender_window *swnd;
     struct filedatagram FD;
 
@@ -251,7 +254,12 @@ void Dg_serv_ack(int sockfd, uint8_t *fr_flag) {
         printf("[Server Child #%d]: Received ACK #%d (rtt = %d).\n", pid, FD.ack, ((FD.ts == 0) ? -1 : (rtt_ts(&rttinfo) - FD.ts)));
         if (FD.ts > 0)
             rtt_stop(&rttinfo, rtt_ts(&rttinfo) - FD.ts);
-        cc_ack(FD.ack, FD.wnd, FD.flag.wnd, fr_flag);
+        cc_ack(FD.ack, FD.wnd, FD.flag.wnd, &fr_flag);
+
+        if (fr_flag) {
+            Dg_serv_write(sockfd, &swnd_head->datagram);
+            printf("[Server Child #%d]: Resend datagram #%d \x1b[43;31m(Fast Retransmission).\x1B[0;0m\n", pid, swnd_head->datagram.seq);
+        }
 
         // free ACKed datagram from head
         swnd = swnd_head;
@@ -291,7 +299,7 @@ void Dg_serv_ack(int sockfd, uint8_t *fr_flag) {
  *  Sending window update probe to client, the interval is PERSIST_TIMER
  * --------------------------------------------------------------------------
  */
-uint16_t probeClientWindow(int sockfd, uint8_t *fr_flag) {
+uint16_t probeClientWindow(int sockfd) {
     int     r;
     char    c;
     fd_set  fds;
@@ -315,7 +323,7 @@ probeagain:
             continue;
         if (FD_ISSET(sockfd, &fds)) {
             // datagram received
-            Dg_serv_ack(sockfd, fr_flag);
+            Dg_serv_ack(sockfd);
             if (cc_wnd() > 0)
                 return cc_wnd();
         } else if (FD_ISSET(pfd[0], &fds)) {
@@ -347,14 +355,12 @@ probeagain:
  *      a. Call cc_wnd, get the number of datagrams can be sent one time
  *      b. If the awnd is 0, call probeClientWindow to probe window update
  *      c. Ready to send new datagram, call rtt_newpack
- *      d. If there is a fast retransmission datagram, send it and call
- *         setAlarm to start timeout timer
- *      e. Send other datagrams in order, set timer if needed
- *      f. Use select to monitor the socket and the pipe, resend the datagram
+ *      d. Send datagrams in order, set timer if needed
+ *      e. Use select to monitor the socket and the pipe, resend the datagram
  *         if timeout. Exit if run out of retry number.
- *      g. Call Dg_serv_ack to process ACK
- *      h. If there is other datagram to send, go to step.a
- *      i. Close file and exit
+ *      f. Call Dg_serv_ack to process ACK
+ *      g. If there is other datagram to send, go to step.a
+ *      h. Close file and exit
  * --------------------------------------------------------------------------
  */
 int Dg_serv_file(int sockfd, char *filename, int max_winsize) {
@@ -363,7 +369,6 @@ int Dg_serv_file(int sockfd, char *filename, int max_winsize) {
     fd_set  fds;
     char        alarm_set       = 0; // alarm set flag
     uint16_t    max_sendsize    = 0;
-    uint8_t     fr_flag         = 0; // fast restransmission flag
 
     fp = Fopen(filename, "r+t");
 
@@ -382,26 +387,14 @@ int Dg_serv_file(int sockfd, char *filename, int max_winsize) {
 
         // if awnd=0 send probe to get window update
         if (max_sendsize == 0)
-            max_sendsize = probeClientWindow(sockfd, &fr_flag);
+            max_sendsize = probeClientWindow(sockfd);
 
         // Set rtt newpack if there is at least one packet need to send
         if (max_sendsize > 0)
             rtt_newpack(&rttinfo);
 
-
-        if (max_sendsize > 0 && fr_flag > 0) {
-            Dg_serv_write(sockfd, &swnd_head->datagram);
-
-            // Set alarm for fast retransmit datagram
-            setAlarm(rtt_start(&rttinfo));
-            alarm_set = 1;
-
-            printf("[Server Child #%d]: Resend datagram #%d \x1b[43;31m(Fast Retransmission).\x1B[0;0m\n", pid, swnd_head->datagram.seq);
-            max_sendsize--;
-        }
-
         // can only transmit cc_wnd() datagrams from swnd_head: now.seq < head.seq + cc_wnd()
-        while (max_sendsize > 0 && swnd_now && swnd_now->datagram.seq < swnd_head->datagram.seq + cc_wnd()) {
+        while (swnd_now && swnd_now->datagram.seq < swnd_head->datagram.seq + max_sendsize) {
             // after (possible) retransmit, if sendsize > 0, send more datagrams
             Dg_serv_write(sockfd, &swnd_now->datagram);
 
@@ -412,10 +405,13 @@ int Dg_serv_file(int sockfd, char *filename, int max_winsize) {
             }
             printf("[Server Child #%d]: Send datagram #%d (ts = %d).\n", pid, swnd_now->datagram.seq, swnd_now->datagram.ts);
             swnd_now = swnd_now->next;
-            max_sendsize--;
         }
 
 selectagain:
+        if (alarm_set == 0) {
+            setAlarm(rtt_start(&rttinfo));
+            alarm_set = 1;
+        }
         // loop for select
         for ( ; ; ) {
             FD_ZERO(&fds);
@@ -427,7 +423,7 @@ selectagain:
                 continue;
             if (FD_ISSET(sockfd, &fds)) {
                 // datagram received
-                Dg_serv_ack(sockfd, &fr_flag);
+                Dg_serv_ack(sockfd);
                 break;
             } else if (FD_ISSET(pfd[0], &fds)) {
                 // timeout
@@ -519,7 +515,7 @@ sendportagain:
                 close(listeningsockfd);
                 return (1);
             } else {
-                printf("[Server Child #%d]: Received an invalid packet (not port ACK).\n");
+                printf("[Server Child #%d]: Received an invalid packet (not port ACK).\n", pid);
                 goto sendportagain;
             }
 
