@@ -244,7 +244,7 @@ uint32_t WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data)
     uint32_t ack = 0;
     uint32_t idx = data->seq % buf->frameSize;
 
-    if (buf->buffer[idx].seq == data->seq)
+    if (buf->firstSeq > 0 && buf->buffer[idx].seq == data->seq)
     {
         printf("[Client]: Receive datagram #%d, seq=%d, is already in buffer\n", data->seq, data->seq);
         return -2;
