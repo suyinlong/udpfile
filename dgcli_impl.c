@@ -230,8 +230,8 @@ void SendDgSrvAck(dg_client *cli, uint32_t ack, uint32_t ts, int wnd, int wndFla
     if (DgRandom() > cli->arg->p)
         Dg_writepacket(cli->sock, &dg);
 
-    printf("[Debug@%d #%d]: Send ack=%d seq=%d ts=%d win=%d\n", 
-        line, pthread_self(), dg.ack, dg.seq, dg.ts, dg.wnd);
+    printf("[Debug@%d #%d]: Send ACK #%d [ack=%d seq=%d ts=%d win=%d]\n", 
+        line, pthread_self(), dg.ack, dg.ack, dg.seq, dg.ts, dg.wnd);
 }
 
 // send new port ack
