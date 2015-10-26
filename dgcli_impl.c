@@ -6,8 +6,8 @@
 * @changelog    :
 **/
 
-//#include <signal.h>
 #include <math.h>
+#include <setjmp.h>
 
 #include "dgcli_impl.h"
 
@@ -15,6 +15,7 @@
 #define SIG_DELAYEDACK  (SIGRTMAX)
 #define RANDOM_MAX       0x7FFFFFFF  // 2^31 - 1
 
+sigjmp_buf g_jmpbuf;
 
 //void   SendDgSrvAck(dg_client *cli, uint32_t ack, uint32_t ts, int wnd, int line);
 void   GetDatagram(dg_client *cli, int need);
@@ -52,6 +53,12 @@ void DestroyDgCli(dg_client *cli)
     // free dg_client object resource
     free(cli);
     cli = NULL;
+}
+
+// handle connect server time out
+void HandleConnectTimeout(int signo)
+{
+    siglongjmp(g_jmpbuf, 1);
 }
 
 // handle receive data time out
@@ -124,7 +131,7 @@ int RecvDataTimeout(int fd, void *data, int *size, int timeout, float p)
     return ret;
 }
 
-// send filename request to server 
+// send a filename request to server 
 int SendDgSrvFilenameReq(dg_client *cli)
 {
     struct filedatagram sndData, rcvData;
@@ -133,16 +140,41 @@ int SendDgSrvFilenameReq(dg_client *cli)
     bzero(&rcvData, sizeof(rcvData));
 
     sndData.seq = cli->seq;
+    sndData.ts = rtt_ts(&cli->rtt);
     sndData.flag.fln = 1;
     sndData.len = strlen(cli->arg->filename);
     strcpy(sndData.data, cli->arg->filename);
 
-    while (1)
+    // calc timeout value & start timer
+    alarm(rtt_start(&cli->rtt));
+
+    if (sigsetjmp(g_jmpbuf, 1) != 0)
+    {
+        if (rtt_timeout(&cli->rtt) < 0)        
+            err_msg("[Client]: No response from server %s:%d, giving up", cli->arg->srvIP, cli->arg->srvPort);
+        else
+            errno = ETIMEDOUT;  // timeout, retransmitting       
+
+        return -1;  
+    }
+
+    //while (1)
     {
         // if random() <= p, discard the datagram (just don't send)
         if (DgRandom() > cli->arg->p)
             Dg_writepacket(cli->sock, &sndData);
 
+        alarm(rtt_start(&cli->rtt));
+
+        Dg_readpacket(cli->sock, &rcvData);
+        if (cli->arg->p > 0 && DgRandom() <= cli->arg->p)
+        {
+            // discard the datagram
+            errno = EAGAIN;
+            alarm(0);
+            return -1;
+        }
+        /*
         // wait for server data, use a timer
         int rcvSize = sizeof(rcvData);
         if (RecvDataTimeout(cli->sock, &rcvData, &rcvSize, cli->timeout, cli->arg->p) < 0)
@@ -158,7 +190,13 @@ int SendDgSrvFilenameReq(dg_client *cli)
             // successfully receive data from server
             break;
         }
+        */
     }
+    
+    // stop SIGALRM timer
+    alarm(0);
+    // calculate & store new RTT estimator values
+    rtt_stop(&cli->rtt, rtt_ts(&cli->rtt) - rcvData.ts);
 
     if (rcvData.flag.pot != 1)
     {
@@ -192,8 +230,8 @@ void SendDgSrvAck(dg_client *cli, uint32_t ack, uint32_t ts, int wnd, int wndFla
     if (DgRandom() > cli->arg->p)
         Dg_writepacket(cli->sock, &dg);
 
-    printf("[Debug@%d #%d]: Send ack=%d seq=%d ts=%d win=%d\n", 
-        line, pthread_self(), dg.ack, dg.seq, dg.ts, dg.wnd);
+    printf("[Debug@%d #%d]: Send ACK #%d [ack=%d seq=%d ts=%d win=%d]\n", 
+        line, pthread_self(), dg.ack, dg.ack, dg.seq, dg.ts, dg.wnd);
 }
 
 // send new port ack
@@ -349,15 +387,21 @@ int SetDelayedAckTimer(dg_client *cli)
         printf("[Client]: timer_settime error\n");
         return -1;
     }
-    
+
     return 0;
 }
 
-// connect server
+// connect server with RTO 
 int ConnectDgServer(dg_client *cli)
 {
     int ret = 0;
     struct filedatagram dg;
+
+    Signal(SIGALRM, HandleConnectTimeout);
+
+    // initialize rtt
+    rtt_init(&cli->rtt);
+    rtt_newpack(&cli->rtt);
 
     do
     {
@@ -365,6 +409,9 @@ int ConnectDgServer(dg_client *cli)
         ret = SendDgSrvFilenameReq(cli);
         if (ret < 0)
         {
+            if (errno == ETIMEDOUT || errno == EAGAIN)            
+                continue;
+            
             printf("[Client]: Connect server %s:%d error\n", cli->arg->srvIP, cli->arg->srvPort);
             return -1;
         }
@@ -427,6 +474,7 @@ int StartDgCli(dg_client *cli)
 
     int ret = 0;
 
+    // initialize random
     srandom(cli->arg->seed);
 
     // connect server

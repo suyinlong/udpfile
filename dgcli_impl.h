@@ -29,11 +29,13 @@ typedef struct dg_arg_t
 /**
 * @brief Define client object
 */
+typedef struct rtt_info dg_rtt;
 typedef struct dg_client_t
 {
     dg_arg     *arg;
     dg_fifo    *fifo;
     dg_rcv_buf *buf;
+    dg_rtt      rtt;
     uint32_t    seq;
     timer_t     delayedAckTimer;
     int         sock;
