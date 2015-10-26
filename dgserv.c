@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-26 00:06:06
+* @Last Modified time: 2015-10-26 01:33:20
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -492,26 +492,28 @@ int Dg_serv_port(int port, int listeningsockfd, int sockfd, struct sockaddr *cli
     char    c, s_port[6], port_flag = 0;;
     int     r;
     fd_set  fds;
-    struct filedatagram FD;
+    struct filedatagram portFD, FD;
 
     printf("[Server Child #%d]: Waiting for port number acknowledged from client...\n", pid);
 
     rtt_newpack(&rttinfo); // new packet
 
     // create a datagram packet with port number
-    bzero(&FD, sizeof(FD));
-    FD.seq = 0;         // port datagram has seq = 0
-    FD.ack = 1;
-    FD.flag.pot = 1;    // indicate this is a packet with port number
+    bzero(&portFD, sizeof(portFD));
+    portFD.seq = 0;         // port datagram has seq = 0
+    portFD.ack = 1;
+    portFD.flag.pot = 1;    // indicate this is a packet with port number
     sprintf(s_port, "%d", port);
-    FD.len = strlen(s_port);
-    strcpy(FD.data, s_port);
+    portFD.len = strlen(s_port);
+    strcpy(portFD.data, s_port);
 
 sendportagain:
     // send the new private port number via listening socket (and connected socket, if timeout)
-    Dg_serv_send(listeningsockfd, client, sizeof(*client), &FD);
-    if (port_flag)
-        Dg_serv_write(sockfd, &FD);
+    Dg_serv_send(listeningsockfd, client, sizeof(*client), &portFD);
+    if (port_flag) {
+        Dg_serv_write(sockfd, &portFD);
+        printf("[Server Child #%d]: \x1b[42;30mResend port number\x1B[0;0m, seq = %d, flag.pot = %d, data = %s.\n", pid, portFD.seq, portFD.flag.pot, portFD.data);
+    }
     port_flag = 1;
     setAlarm(rtt_start(&rttinfo));
 
@@ -530,7 +532,8 @@ sendportagain:
             // should receive ACK from connection socket
             Dg_serv_read(sockfd, &FD);
 
-            rtt_stop(&rttinfo, rtt_ts(&rttinfo) - FD.ts);
+            if (FD.ts > 0)
+                rtt_stop(&rttinfo, rtt_ts(&rttinfo) - FD.ts);
             if (FD.ack == 1 && FD.flag.pot == 1) {
                 printf("[Server Child #%d]: Received ACK. Private connection established.\n", pid);
                 close(listeningsockfd);

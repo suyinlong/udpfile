@@ -29,7 +29,7 @@ dg_client *CreateDgCli(const dg_arg *arg, int sock)
     cli->timeout = RCV_TIMEOUT;
     cli->seq = 0;
 
-    // create a receive buffer, the buffer size is 
+    // create a receive buffer, the buffer size is
     // twice the receive sliding window size
     cli->buf = CreateDgRcvBuf(cli->arg->rcvWin);
 
@@ -74,7 +74,7 @@ void HandleDelayedAckTimeout(int signo, siginfo_t *siginfo, void *context)
     cli = (dg_client *)siginfo->si_value.sival_ptr;
     if (cli == NULL)
         return;
-    
+
     int need = 1;
     GetDatagram(cli, need);
 }
@@ -111,7 +111,7 @@ int RecvDataTimeout(int fd, void *data, int *size, int timeout, float p)
     */
 
     int	ret = 0;
-    // read data 
+    // read data
     if ((ret = read(fd, data, *size)) < 0)
     {
         if (errno == EINTR)
@@ -124,7 +124,7 @@ int RecvDataTimeout(int fd, void *data, int *size, int timeout, float p)
         errno = EAGAIN;
         ret = -1;
     }
-    
+
 
     // turn off the alarm
     alarm(0);
@@ -134,7 +134,7 @@ int RecvDataTimeout(int fd, void *data, int *size, int timeout, float p)
     return ret;
 }
 
-// send a filename request to server 
+// send a filename request to server
 int SendDgSrvFilenameReq(dg_client *cli)
 {
     struct filedatagram sndData, rcvData;
@@ -153,12 +153,12 @@ int SendDgSrvFilenameReq(dg_client *cli)
 
     if (sigsetjmp(g_jmpbuf, 1) != 0)
     {
-        if (rtt_timeout(&cli->rtt) < 0)        
+        if (rtt_timeout(&cli->rtt) < 0)
             err_msg("[Client]: No response from server %s:%d, giving up", cli->arg->srvIP, cli->arg->srvPort);
         else
-            errno = ETIMEDOUT;  // timeout, retransmitting       
+            errno = ETIMEDOUT;  // timeout, retransmitting
         alarm(0);
-        return -1;  
+        return -1;
     }
 
     //while (1)
@@ -180,7 +180,7 @@ int SendDgSrvFilenameReq(dg_client *cli)
         int rcvSize = sizeof(rcvData);
         if (RecvDataTimeout(cli->sock, &rcvData, &rcvSize, cli->timeout, cli->arg->p) < 0)
         {
-            if (errno == EAGAIN)                
+            if (errno == EAGAIN)
                 return 0;
 
             if (errno != ETIMEDOUT)
@@ -193,7 +193,7 @@ int SendDgSrvFilenameReq(dg_client *cli)
         }
         */
     }
-    
+
     // stop SIGALRM timer
     alarm(0);
     // calculate & store new RTT estimator values
@@ -216,16 +216,16 @@ int SendDgSrvFilenameReq(dg_client *cli)
 // send new port ack
 int SendDgSrvNewPortAck(dg_client *cli, struct filedatagram *data)
 {
-    struct filedatagram sndData, rcvData;
+    struct filedatagram sndData;
     // init filedatagram
     bzero(&sndData, sizeof(sndData));
-    bzero(&rcvData, sizeof(rcvData));
+
     sndData.seq = cli->seq++;
     sndData.ack = 1;
     sndData.wnd = cli->buf->rwnd.size;
     sndData.flag.pot = 1;
     sndData.len = 0;
-
+/*
     // calc timeout value & start timer
     alarm(rtt_start(&cli->rtt));
 
@@ -238,18 +238,22 @@ int SendDgSrvNewPortAck(dg_client *cli, struct filedatagram *data)
         alarm(0);
         return -1;
     }
+*/
+    bzero(data, sizeof(*data));
+    while (1) {
+        // if random() <= p, discard the datagram (just don't send)
+        if (DgRandom() > cli->arg->p)
+            Dg_writepacket(cli->sock, &sndData);
 
-    // if random() <= p, discard the datagram (just don't send)
-    if (DgRandom() > cli->arg->p)
-        Dg_writepacket(cli->sock, &sndData);
+        Dg_readpacket(cli->sock, data);
+        if (cli->arg->p > 0 && DgRandom() <= cli->arg->p)
+        {
+            // discard the datagram
+            continue;
+        }
 
-    Dg_readpacket(cli->sock, &rcvData);
-    if (cli->arg->p > 0 && DgRandom() <= cli->arg->p)
-    {
-        // discard the datagram
-        errno = EAGAIN;
-        alarm(0);
-        return -1;
+        if (data->seq > 0)
+            break;
     }
 
     /*
@@ -298,7 +302,7 @@ void SendDgSrvAck(dg_client *cli, uint32_t ack, uint32_t ts, int wnd, int wndFla
     if (DgRandom() > cli->arg->p)
         Dg_writepacket(cli->sock, &dg);
 
-    printf("[Debug@%d #%d]: Send ACK #%d [ack=%d seq=%d ts=%d win=%d]\n", 
+    printf("[Debug@%d #%d]: Send ACK #%d [ack=%d seq=%d ts=%d win=%d]\n",
         line, pthread_self(), dg.ack, dg.ack, dg.seq, dg.ts, dg.wnd);
 }
 
@@ -324,24 +328,24 @@ void *PrintOutThread(void *arg)
         printf("[Client]: Print out work thread error.\n");
         return;
     }
-    
+
     dg_client *cli = (dg_client *)arg;
 
     int size = 0;
     int ret = 0;
-    double d = 0.0; 
+    double d = 0.0;
     struct timeval tv;
     struct filedatagram fd;
 
     printf("[Client]: Print thread #%d is working\n", pthread_self());
-    
+
     while (1)
     {
         // get data from fifo
         ret = ReadDgFifo(cli->fifo, &fd, &size);
-        if (ret < 0)        
+        if (ret < 0)
         {
-            // produce a random double in the range (0.0, 1.0) 
+            // produce a random double in the range (0.0, 1.0)
             d = ((rand() + 1) / (double)(RAND_MAX + 2));
             tv.tv_sec = 0;
             tv.tv_usec = -1 * cli->arg->u * log(d);  // -1 * u * ln(random())
@@ -357,7 +361,7 @@ void *PrintOutThread(void *arg)
         {
             printf("[Thread #%d]: File data finished\n", pthread_self());
             break;
-        }            
+        }
     }
 
     printf("[Client]: Print thread #%d exited\n", pthread_self());
@@ -395,15 +399,15 @@ int SetDelayedAckTimer(dg_client *cli)
     struct sigevent evp;
     evp.sigev_notify = SIGEV_SIGNAL;
     evp.sigev_signo = SIG_DELAYEDACK;
-    evp.sigev_value.sival_ptr = cli;    // pass the client object    
+    evp.sigev_value.sival_ptr = cli;    // pass the client object
 
     // create a timer
     if (timer_create(CLOCK_REALTIME, &evp, &cli->delayedAckTimer) < 0)
     {
         printf("[Client]: timer_create error\n");
         return -1;
-    }        
-    
+    }
+
     // set 500ms delayed ack timer
     int n = 500;
     struct itimerspec it;
@@ -411,7 +415,7 @@ int SetDelayedAckTimer(dg_client *cli)
     it.it_interval.tv_nsec = n * 1000000;
     it.it_value.tv_sec = 0;
     it.it_value.tv_nsec = 500 * 1000000;
-    
+
     // set the timer
     if (timer_settime(cli->delayedAckTimer, 0, &it, NULL))
     {
@@ -422,7 +426,7 @@ int SetDelayedAckTimer(dg_client *cli)
     return 0;
 }
 
-// connect server with RTO 
+// connect server with RTO
 int ConnectDgServer(dg_client *cli)
 {
     int ret = 0;
@@ -445,14 +449,14 @@ int ConnectDgServer(dg_client *cli)
                 printf("[Client]: Send filename req to server %s:%d error: %s\n", cli->arg->srvIP, cli->arg->srvPort, strerror(errno));
                 continue;
             }
-            
+
             printf("[Client]: Connect server %s:%d error\n", cli->arg->srvIP, cli->arg->srvPort);
             return -1;
         }
 
         // reconnect server with new port number
         ReconnectDgSrv(cli);
-        
+
         // send port ack
         ret = SendDgSrvNewPortAck(cli, &dg);
         if (ret < 0)
@@ -477,7 +481,7 @@ int ConnectDgServer(dg_client *cli)
 // get datagram from buffer
 // 1. check the receiver window
 // 2. if there is in-order segments, put those segments to fifo
-// 3. if there is more than 2 in-order segments, send ack to server   
+// 3. if there is more than 2 in-order segments, send ack to server
 void GetDatagram(dg_client *cli, int need)
 {
     int ret = 0;
@@ -500,14 +504,14 @@ void GetDatagram(dg_client *cli, int need)
 
     if (ret != -1)
     {
-        // segments in-order, send ack to server 
+        // segments in-order, send ack to server
         SendDgSrvAck(cli, dg.seq + 1, 0/*dg.ts*/, cli->buf->rwnd.win, 1, __LINE__);
     }
 }
 
 double DgRandom()
 {
-    // produce a random double in the range [0.0, 1.0] 
+    // produce a random double in the range [0.0, 1.0]
     double r = random() / (double)RANDOM_MAX;
     return r;
 }
@@ -568,8 +572,8 @@ int StartDgCli(dg_client *cli)
             // send current window size
             SendDgSrvAck(cli, cli->buf->nextSeq, dg.ts, cli->buf->rwnd.win, 1, __LINE__);
             continue;
-        }        
-        
+        }
+
         uint32_t ack = 0, ts = 0;
         // put data to receive buffer
         ack = WriteDgRcvBuf(cli->buf, &dg);
