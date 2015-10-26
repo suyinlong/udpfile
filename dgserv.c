@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-26 01:33:20
+* @Last Modified time: 2015-10-26 11:01:45
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -267,7 +267,7 @@ uint32_t Dg_serv_ack(int sockfd) {
 
         if (fr_flag) {
             Dg_serv_write(sockfd, &swnd_head->datagram);
-            printf("[Server Child #%d]: Resend datagram #%d \x1b[43;31m(Fast Retransmission).\x1B[0;0m\n", pid, swnd_head->datagram.seq);
+            printf("[Server Child #%d]: Resend datagram #%d \x1b[43;31m(Fast Retransmission)\x1B[0;0m.\n", pid, swnd_head->datagram.seq);
         }
 
         // free ACKed datagram from head
@@ -457,7 +457,7 @@ selectagain:
                 cc_timeout();
                 Dg_serv_write(sockfd, &swnd_head->datagram);
                 setAlarm(rtt_start(&rttinfo));
-                printf("[Server Child #%d]: Resend datagram #%d \x1b[43;31m(Timeout #%2d).\x1B[0;0m\n", pid, swnd_head->datagram.seq, rttinfo.rtt_nrexmt);
+                printf("[Server Child #%d]: Resend datagram #%d \x1b[43;31m(Timeout #%2d)\x1B[0;0m.\n", pid, swnd_head->datagram.seq, rttinfo.rtt_nrexmt);
                 goto selectagain;
             }
             if (r == -1)
@@ -489,7 +489,7 @@ selectagain:
  * --------------------------------------------------------------------------
  */
 int Dg_serv_port(int port, int listeningsockfd, int sockfd, struct sockaddr *client) {
-    char    c, s_port[6], port_flag = 0;;
+    char    c, s_port[10], port_retry = 0;
     int     r;
     fd_set  fds;
     struct filedatagram portFD, FD;
@@ -510,11 +510,11 @@ int Dg_serv_port(int port, int listeningsockfd, int sockfd, struct sockaddr *cli
 sendportagain:
     // send the new private port number via listening socket (and connected socket, if timeout)
     Dg_serv_send(listeningsockfd, client, sizeof(*client), &portFD);
-    if (port_flag) {
+    if (port_retry > 0) {
         Dg_serv_write(sockfd, &portFD);
-        printf("[Server Child #%d]: \x1b[42;30mResend port number\x1B[0;0m, seq = %d, flag.pot = %d, data = %s.\n", pid, portFD.seq, portFD.flag.pot, portFD.data);
+        printf("[Server Child #%d]: Resend port number %s \x1b[42;30m(Timeout #%2d)\x1B[0;0m.\n", pid, portFD.data, port_retry);
     }
-    port_flag = 1;
+    port_retry++;
     setAlarm(rtt_start(&rttinfo));
 
     for ( ; ; ) {

@@ -167,14 +167,14 @@ int SendDgSrvFilenameReq(dg_client *cli)
         if (DgRandom() > cli->arg->p)
             Dg_writepacket(cli->sock, &sndData);
 
+readportreplyagain:
         Dg_readpacket(cli->sock, &rcvData);
         if (cli->arg->p > 0 && DgRandom() <= cli->arg->p)
         {
             // discard the datagram
-            errno = EAGAIN;
-            alarm(0);
-            return -1;
+            goto readportreplyagain;
         }
+
         /*
         // wait for server data, use a timer
         int rcvSize = sizeof(rcvData);
@@ -245,11 +245,12 @@ int SendDgSrvNewPortAck(dg_client *cli, struct filedatagram *data)
         if (DgRandom() > cli->arg->p)
             Dg_writepacket(cli->sock, &sndData);
 
+readportagain:
         Dg_readpacket(cli->sock, data);
         if (cli->arg->p > 0 && DgRandom() <= cli->arg->p)
         {
             // discard the datagram
-            continue;
+            goto readportagain;
         }
 
         if (data->seq > 0)
