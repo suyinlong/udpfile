@@ -144,6 +144,7 @@ int SendDgSrvFilenameReq(dg_client *cli)
 
     sndData.seq = cli->seq;
     sndData.ts = rtt_ts(&cli->rtt);
+    sndData.wnd = cli->buf->rwnd.size;
     sndData.flag.fln = 1;
     sndData.len = strlen(cli->arg->filename);
     strcpy(sndData.data, cli->arg->filename);
@@ -216,10 +217,10 @@ int SendDgSrvFilenameReq(dg_client *cli)
 // send new port ack
 int SendDgSrvNewPortAck(dg_client *cli, struct filedatagram *data)
 {
-    struct filedatagram sndData, rcvData;
+    struct filedatagram sndData;
     // init filedatagram
     bzero(&sndData, sizeof(sndData));
-    bzero(&rcvData, sizeof(rcvData));
+
     sndData.seq = cli->seq++;
     sndData.ack = 1;
     sndData.wnd = cli->buf->rwnd.size;
@@ -243,7 +244,7 @@ int SendDgSrvNewPortAck(dg_client *cli, struct filedatagram *data)
     if (DgRandom() > cli->arg->p)
         Dg_writepacket(cli->sock, &sndData);
 
-    Dg_readpacket(cli->sock, &rcvData);
+    Dg_readpacket(cli->sock, data);
     if (cli->arg->p > 0 && DgRandom() <= cli->arg->p)
     {
         // discard the datagram
@@ -251,6 +252,19 @@ int SendDgSrvNewPortAck(dg_client *cli, struct filedatagram *data)
         alarm(0);
         return -1;
     }
+
+    alarm(0);
+
+    printf("Receive first datagram, flag.eof=%d flag.fln=%d flag.pob=%d flag.pot=%d data=%s\n",
+        data->flag.eof, data->flag.fln, data->flag.pob, data->flag.pot, data->data);
+
+    if (data->flag.pot == 1)
+    {
+        errno = EAGAIN;
+        return -1;
+    }
+
+    
 
     /*
     while (1)
@@ -468,6 +482,7 @@ int ConnectDgServer(dg_client *cli)
         }
     } while (ret < 0);
 
+    printf("[Debug]: Connect server %s:%d ok\n", cli->arg->srvIP, cli->newPort);
     // save first segment
     WriteDgRcvBuf(cli->buf, &dg);
 
