@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-25 23:42:31
+* @Last Modified time: 2015-10-26 00:06:06
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -258,7 +258,7 @@ uint32_t Dg_serv_ack(int sockfd) {
             printf(" <WNDUPD>");
 
         if (FD.ts > 0) {
-            printf(", ts = %d", rtt_ts(&rttinfo) - FD.ts);
+            printf(", rtt = %d", rtt_ts(&rttinfo) - FD.ts);
             rtt_stop(&rttinfo, rtt_ts(&rttinfo) - FD.ts);
         }
         printf("\n");
@@ -454,6 +454,7 @@ selectagain:
                     errno = ETIMEDOUT;
                     return 0;
                 }
+                cc_timeout();
                 Dg_serv_write(sockfd, &swnd_head->datagram);
                 setAlarm(rtt_start(&rttinfo));
                 printf("[Server Child #%d]: Resend datagram #%d \x1b[43;31m(Timeout #%2d).\x1B[0;0m\n", pid, swnd_head->datagram.seq, rttinfo.rtt_nrexmt);

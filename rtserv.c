@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-13 10:01:16
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-25 23:25:33
+* @Last Modified time: 2015-10-25 23:57:02
 *
 * File:         rtserv.c
 * Description:  Reliable Transmission Server C file
@@ -55,7 +55,7 @@ static inline void congestion_avoidance() {
         ca_c -= cwnd;
         cwnd ++;
     }
-    printf("[Server Child #%d]: CC Congestion Avoidance. (cwnd = %d, ca_c = %d)\n", pid, cwnd, ca_c);
+    printf("[Server Child #%d]: CC Congestion Avoidance, cwnd = %d, ssthresh = %d, ca_c = %d\n", pid, cwnd, ssthresh, ca_c);
 }
 
 /* --------------------------------------------------------------------------
@@ -85,13 +85,14 @@ static inline void slow_start() {
         last_ack += ssthresh - cwnd;
         cwnd = ssthresh;
         ca_c = 0;
+        printf("[Server Child #%d]: CC Slow Start, cwnd = %d, ssthresh = %d <SPLIT>\n", pid, cwnd, ssthresh);
         congestion_avoidance();
     } else {
         // cwnd is still within ssthresh
         cwnd += this_ack - last_ack;
+        printf("[Server Child #%d]: CC Slow Start, cwnd = %d, ssthresh = %d\n", pid, cwnd, ssthresh);
     }
 
-    printf("[Server Child #%d]: CC Slow Start. (cwnd = %d)\n", pid, cwnd);
 }
 
 /* --------------------------------------------------------------------------
@@ -113,11 +114,13 @@ static inline void slow_start() {
  */
 void cc_timeout() {
     ssthresh = cwnd >> 1;
+    if (ssthresh < 1)
+        ssthresh = 1;
     cwnd = iwnd;
     dup_c = 0;
     ca_c = 0;
 
-    printf("[Server Child #%d]: Congestion Control Timeout. (cwnd = %d, ssthresh = %d)\n", pid, cwnd, ssthresh);
+    printf("[Server Child #%d]: CC Timeout, cwnd = %d, ssthresh = %d\n", pid, cwnd, ssthresh);
 }
 
 /* --------------------------------------------------------------------------
@@ -154,7 +157,7 @@ void cc_init(uint16_t advertised_wnd, uint16_t max_wnd) {
     else
         ssthresh = CC_SSTHRESH;
 
-    printf("[Server Child #%d]: CC initialized. (awnd = %d, mwnd = %d, iwnd = %d, cwnd = %d, ssthresh = %d)\n", pid, awnd, mwnd, iwnd, cwnd, ssthresh);
+    printf("[Server Child #%d]: CC Initialized. (awnd = %d, mwnd = %d, iwnd = %d, cwnd = %d, ssthresh = %d)\n", pid, awnd, mwnd, iwnd, cwnd, ssthresh);
 }
 
 /* --------------------------------------------------------------------------
@@ -228,9 +231,6 @@ uint16_t cc_updwnd(uint16_t wnd) {
  * --------------------------------------------------------------------------
  */
 uint16_t cc_ack(uint32_t seq, uint16_t wnd, uint8_t flag, uint8_t *fr_flag) {
-    // problem: What if the fast retransmit packet is lost???
-    // problem: and after this the timeout one is lost too?
-
     this_ack = seq;
     awnd = wnd;
     *fr_flag = 0;
@@ -246,21 +246,22 @@ uint16_t cc_ack(uint32_t seq, uint16_t wnd, uint8_t flag, uint8_t *fr_flag) {
     if (dup_c > 3 && fast_rec == 1) {
         // fast recovery
         cwnd += 1;
-        printf("[Server Child #%d]: CC Fast Recovery (Duplicate ACK received) (cwnd = %d)\n", pid, cwnd);
+        printf("[Server Child #%d]: CC Fast Recovery - Duplicate ACK received, cwnd = %d, ssthresh = %d\n", pid, cwnd, ssthresh);
     } else if (dup_c == 3) {
-        // fast retransmit
         ssthresh = cwnd >> 1;
+        if (ssthresh < 1)
+            ssthresh = 1;
         // cwnd = ssthresh + 3;
-        // TODO: retransmit
+        // fast recovery and fast retransmit flag
         fast_rec = 1;
         *fr_flag = 1;
-        printf("[Server Child #%d]: CC Fast Retransmit and Fast Recovery triggered. (cwnd = %d, ssthresh = %d)\n", pid, cwnd, ssthresh);
+        printf("[Server Child #%d]: CC Fast Retransmit and Fast Recovery triggered, cwnd = %d, ssthresh = %d\n", pid, cwnd, ssthresh);
     } else if (dup_c == 0 && fast_rec == 1) {
         // state: congestion avoidance
         cwnd = ssthresh;
         fast_rec = 0;
         ca_c = 0;
-        printf("[Server Child #%d]: CC Fast Recovery (New ACK received) (cwnd = %d, ssthresh = %d)\n", pid, cwnd, ssthresh);
+        printf("[Server Child #%d]: CC Fast Recovery - New ACK received, cwnd = %d, ssthresh = %d\n", pid, cwnd, ssthresh);
     } else if (dup_c == 0) {
         if (cwnd < ssthresh)
             slow_start();
