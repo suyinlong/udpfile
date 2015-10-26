@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-25 22:54:40
+* @Last Modified time: 2015-10-25 23:42:31
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -249,13 +249,20 @@ uint32_t Dg_serv_ack(int sockfd) {
     Fcntl(sockfd, F_SETFL, flag | FNDELAY);
 
     while ((flag = Dg_serv_read_nb(sockfd, &FD)) >= 0) {
-        max_ack = max(max_ack, FD.ack);
-        if (max_ack > swnd_head->datagram.seq)
+        if (FD.ack > swnd_head->datagram.seq)
             setAlarm(0);
+        max_ack = max(max_ack, FD.ack);
 
-        printf("[Server Child #%d]: Received ACK #%d (rtt = %d).\n", pid, FD.ack, ((FD.ts == 0) ? -1 : (rtt_ts(&rttinfo) - FD.ts)));
-        if (FD.ts > 0)
+        printf("[Server Child #%d]: Received ACK #%d, awnd = %d", pid, FD.ack, FD.wnd);
+        if (FD.flag.wnd)
+            printf(" <WNDUPD>");
+
+        if (FD.ts > 0) {
+            printf(", ts = %d", rtt_ts(&rttinfo) - FD.ts);
             rtt_stop(&rttinfo, rtt_ts(&rttinfo) - FD.ts);
+        }
+        printf("\n");
+
         cc_ack(FD.ack, FD.wnd, FD.flag.wnd, &fr_flag);
 
         if (fr_flag) {
@@ -347,6 +354,8 @@ probeagain:
  *
  *  @param  : int       sockfd
  *            char *    filename
+ *            int       max_winsize
+ *            int       rwnd
  *  @return : int       0 = fail
  *  @see    : function#probeClientWindow
  *
@@ -366,12 +375,13 @@ probeagain:
  *      h. Close file and exit
  * --------------------------------------------------------------------------
  */
-int Dg_serv_file(int sockfd, char *filename, int max_winsize) {
+int Dg_serv_file(int sockfd, char *filename, int max_winsize, int rwnd) {
     int     r;
     char    c;
     fd_set  fds;
     char        alarm_set       = 0; // alarm set flag
     uint16_t    max_sendsize    = 0;
+    uint32_t    min_seq, max_seq;
 
     fp = Fopen(filename, "r+t");
 
@@ -379,13 +389,15 @@ int Dg_serv_file(int sockfd, char *filename, int max_winsize) {
     Dg_serv_buffer(max_winsize);
 
     // init congestion control
-    cc_init(10, max_winsize); // awnd set to 0 first TODO: GET AWND FROM ACK!!!
+    cc_init(rwnd, max_winsize);
 
     // start to send packet
     swnd_now = swnd_head;
 
     while (1) {
         alarm_set = 0;
+        min_seq = 2^32-1;
+        max_seq = 0;
         max_sendsize = cc_wnd();
 
         // if awnd=0 send probe to get window update
@@ -400,15 +412,19 @@ int Dg_serv_file(int sockfd, char *filename, int max_winsize) {
         while (swnd_now && swnd_now->datagram.seq < swnd_head->datagram.seq + max_sendsize) {
             // after (possible) retransmit, if sendsize > 0, send more datagrams
             Dg_serv_write(sockfd, &swnd_now->datagram);
+            min_seq = min(swnd_now->datagram.seq, min_seq);
+            max_seq = max(swnd_now->datagram.seq, max_seq);
 
             // Set alarm for the oldest datagram
             if (alarm_set == 0) {
                 setAlarm(rtt_start(&rttinfo));
                 alarm_set = 1;
             }
-            printf("[Server Child #%d]: Send datagram #%d (ts = %d).\n", pid, swnd_now->datagram.seq, swnd_now->datagram.ts);
             swnd_now = swnd_now->next;
         }
+
+        if (max_seq > 0)
+            printf("[Server Child #%d]: Send datagram #%d - #%d.\n", pid, min_seq, max_seq);
 
 selectagain:
         if (alarm_set == 0) {
@@ -464,7 +480,7 @@ selectagain:
  *            int               listeningsockfd
  *            int               sockfd
  *            struct sockaddr   *client
- *  @return : int       0 = fail
+ *  @return : int       -1 = fail
  *
  *  Use RTO mechanism to send port number
  *  If timeout, retry by sending port number to both listeningsockfd and
@@ -517,7 +533,7 @@ sendportagain:
             if (FD.ack == 1 && FD.flag.pot == 1) {
                 printf("[Server Child #%d]: Received ACK. Private connection established.\n", pid);
                 close(listeningsockfd);
-                return (1);
+                return (FD.wnd);
             } else {
                 printf("[Server Child #%d]: Received an invalid packet (not port ACK).\n", pid);
                 goto sendportagain;
@@ -537,7 +553,7 @@ sendportagain:
         if (r == -1)
             err_sys("select error");
     }
-    return 0;
+    return -1;
 }
 
 /* --------------------------------------------------------------------------
@@ -558,7 +574,7 @@ sendportagain:
  * --------------------------------------------------------------------------
  */
 void Dg_serv(int listeningsockfd, struct socket_info *sock_head, struct sockaddr *server, struct sockaddr *client, char *filename, int max_winsize) {
-    int             local = 0, sockfd, len;
+    int             local = 0, sockfd, len, rwnd;
     const int       on = 1;
     struct sockaddr_in      servaddr;
     struct sockaddr_storage ss;
@@ -609,9 +625,9 @@ void Dg_serv(int listeningsockfd, struct socket_info *sock_head, struct sockaddr
     Pipe(pfd); // create pipe
 
     // start to transfer port number
-    if (Dg_serv_port(sockaddr->sin_port, listeningsockfd, sockfd, client) == 1) {
+    if ((rwnd = Dg_serv_port(sockaddr->sin_port, listeningsockfd, sockfd, client)) >= 0) {
         // start to transfer file content
-        if (Dg_serv_file(sockfd, filename, max_winsize) == 1)
+        if (Dg_serv_file(sockfd, filename, max_winsize, rwnd) == 1)
             printf("[Server Child #%d]: Finish sending file.\n", pid);
         else
             printf("[Server Child #%d]: Sending file error.\n", pid);
