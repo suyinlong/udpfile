@@ -154,7 +154,7 @@ int SendDgSrvFilenameReq(dg_client *cli)
             err_msg("[Client]: No response from server %s:%d, giving up", cli->arg->srvIP, cli->arg->srvPort);
         else
             errno = ETIMEDOUT;  // timeout, retransmitting       
-
+        alarm(0);
         return -1;  
     }
 
@@ -163,8 +163,6 @@ int SendDgSrvFilenameReq(dg_client *cli)
         // if random() <= p, discard the datagram (just don't send)
         if (DgRandom() > cli->arg->p)
             Dg_writepacket(cli->sock, &sndData);
-
-        alarm(rtt_start(&cli->rtt));
 
         Dg_readpacket(cli->sock, &rcvData);
         if (cli->arg->p > 0 && DgRandom() <= cli->arg->p)
@@ -212,6 +210,72 @@ int SendDgSrvFilenameReq(dg_client *cli)
     return 0;
 }
 
+// send new port ack
+int SendDgSrvNewPortAck(dg_client *cli, struct filedatagram *data)
+{
+    struct filedatagram sndData, rcvData;
+    // init filedatagram
+    bzero(&sndData, sizeof(sndData));
+    bzero(&rcvData, sizeof(rcvData));
+    sndData.seq = cli->seq++;
+    sndData.ack = 1;
+    sndData.flag.pot = 1;
+    sndData.len = 0;
+
+    // calc timeout value & start timer
+    alarm(rtt_start(&cli->rtt));
+
+    if (sigsetjmp(g_jmpbuf, 1) != 0)
+    {
+        if (rtt_timeout(&cli->rtt) < 0)
+            err_msg("[Client]: Send port ack, no response from server %s:%d, giving up", cli->arg->srvIP, cli->newPort);
+        else
+            errno = ETIMEDOUT;  // timeout, retransmitting
+        alarm(0);
+        return -1;
+    }
+
+    // if random() <= p, discard the datagram (just don't send)
+    if (DgRandom() > cli->arg->p)
+        Dg_writepacket(cli->sock, &sndData);
+
+    Dg_readpacket(cli->sock, &rcvData);
+    if (cli->arg->p > 0 && DgRandom() <= cli->arg->p)
+    {
+        // discard the datagram
+        errno = EAGAIN;
+        alarm(0);
+        return -1;
+    }
+
+    /*
+    while (1)
+    {
+    // if random() <= p, discard the datagram (just don't send)
+    if (DgRandom() > cli->arg->p)
+    Dg_writepacket(cli->sock, &dg);
+
+    // wait for server data, use a timer
+    int rcvSize = sizeof(struct filedatagram);
+    if (RecvDataTimeout(cli->sock, data, &rcvSize, cli->timeout, cli->arg->p) < 0)
+    {
+    if (errno == EAGAIN)
+    return 0;
+
+    if (errno != ETIMEDOUT)
+    return -1; // error
+    }
+    else
+    {
+    // successfully receive data from server
+    break;
+    }
+    }
+    */
+
+    return 0;
+}
+
 // send ack to server
 void SendDgSrvAck(dg_client *cli, uint32_t ack, uint32_t ts, int wnd, int wndFlag, int line)
 {
@@ -232,43 +296,6 @@ void SendDgSrvAck(dg_client *cli, uint32_t ack, uint32_t ts, int wnd, int wndFla
 
     printf("[Debug@%d #%d]: Send ACK #%d [ack=%d seq=%d ts=%d win=%d]\n", 
         line, pthread_self(), dg.ack, dg.ack, dg.seq, dg.ts, dg.wnd);
-}
-
-// send new port ack
-int SendDgSrvNewPortAck(dg_client *cli, struct filedatagram *data)
-{
-    struct filedatagram dg;
-    // init filedatagram
-    bzero(&dg, sizeof(dg));
-    dg.seq = cli->seq++;
-    dg.ack = 1;
-    dg.flag.pot = 1;
-    dg.len = 0;
-
-    while (1)
-    {
-        // if random() <= p, discard the datagram (just don't send)
-        if (DgRandom() > cli->arg->p)
-            Dg_writepacket(cli->sock, &dg);
-
-        // wait for server data, use a timer
-        int rcvSize = sizeof(struct filedatagram);
-        if (RecvDataTimeout(cli->sock, data, &rcvSize, cli->timeout, cli->arg->p) < 0)
-        {
-            if (errno == EAGAIN)
-                return 0;
-
-            if (errno != ETIMEDOUT)
-                return -1; // error
-        }
-        else
-        {
-            // successfully receive data from server
-            break;
-        }
-    }
-
-    return 0;
 }
 
 void SendDgSrvFin(dg_client *cli, uint32_t ack)
@@ -409,8 +436,11 @@ int ConnectDgServer(dg_client *cli)
         ret = SendDgSrvFilenameReq(cli);
         if (ret < 0)
         {
-            if (errno == ETIMEDOUT || errno == EAGAIN)            
+            if (errno == ETIMEDOUT || errno == EAGAIN)
+            {
+                printf("[Client]: Send filename req to server %s:%d error: %s\n", cli->arg->srvIP, cli->arg->srvPort, strerror(errno));
                 continue;
+            }
             
             printf("[Client]: Connect server %s:%d error\n", cli->arg->srvIP, cli->arg->srvPort);
             return -1;
@@ -419,12 +449,23 @@ int ConnectDgServer(dg_client *cli)
         // reconnect server with new port number
         ReconnectDgSrv(cli);
         
-        // send connect ack
+        // send port ack
         ret = SendDgSrvNewPortAck(cli, &dg);
+        if (ret < 0)
+        {
+            if (errno == ETIMEDOUT || errno == EAGAIN)
+            {
+                printf("[Client]: Send port ack to server %s:%d error: %s\n", cli->arg->srvIP, cli->newPort, strerror(errno));
+                // reconnect well known port number
+                cli->newPort = cli->arg->srvPort;
+                ReconnectDgSrv(cli);
+                continue;
+            }
+        }
     } while (ret < 0);
 
     // save first segment
-    ret = WriteDgRcvBuf(cli->buf, &dg);
+    WriteDgRcvBuf(cli->buf, &dg);
 
     return 0;
 }
