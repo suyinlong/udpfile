@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-25 22:37:22
+* @Last Modified time: 2015-10-25 22:54:40
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -230,27 +230,29 @@ void Dg_serv_buffer(int size) {
  *  Server ACK handle function
  *
  *  @param  : int       sockfd
- *            uint8_t   *fr_flag    # fast retransmission flag
- *  @return : void
+ *  @return : uint32_t  max_ack     # max ack number
  *
  *  Receive datagram (ACK) and update RTO, cwnd and sliding window
  *  Set the socket to non-blocking to handle all received ACK
  *  Fast retransmission if needed
  * --------------------------------------------------------------------------
  */
-void Dg_serv_ack(int sockfd) {
+uint32_t Dg_serv_ack(int sockfd) {
     int flag, k = 0;
-    uint8_t fr_flag = 0; // fast restransmission flag
+    uint8_t     fr_flag = 0; // fast restransmission flag
+    uint32_t    max_ack = 0; // max ack number
     struct sender_window *swnd;
     struct filedatagram FD;
-
-    setAlarm(0);
 
     // set to nonblocking
     flag = Fcntl(sockfd, F_GETFL, 0);
     Fcntl(sockfd, F_SETFL, flag | FNDELAY);
 
     while ((flag = Dg_serv_read_nb(sockfd, &FD)) >= 0) {
+        max_ack = max(max_ack, FD.ack);
+        if (max_ack > swnd_head->datagram.seq)
+            setAlarm(0);
+
         printf("[Server Child #%d]: Received ACK #%d (rtt = %d).\n", pid, FD.ack, ((FD.ts == 0) ? -1 : (rtt_ts(&rttinfo) - FD.ts)));
         if (FD.ts > 0)
             rtt_stop(&rttinfo, rtt_ts(&rttinfo) - FD.ts);
@@ -286,6 +288,7 @@ void Dg_serv_ack(int sockfd) {
 
     // printf("[Server Child #%d]: Call buffer %d.\n", pid, k);
     Dg_serv_buffer(k);
+    return max_ack;
 }
 
 /* --------------------------------------------------------------------------
@@ -423,8 +426,9 @@ selectagain:
                 continue;
             if (FD_ISSET(sockfd, &fds)) {
                 // datagram received
-                Dg_serv_ack(sockfd);
-                break;
+                uint32_t oldseq = swnd_head->datagram.seq;
+                if (Dg_serv_ack(sockfd) > oldseq)
+                    break;
             } else if (FD_ISSET(pfd[0], &fds)) {
                 // timeout
                 Read(pfd[0], &c, 1);
