@@ -138,8 +138,8 @@ int RecvDataTimeout(int fd, void *data, int *size, int timeout, float p)
 #endif
 
 read_data_again:
-    Dg_readpacket(fd, data);
-    if (errno == EINTR)
+    ret = Dg_readpacket(fd, data);
+    if (ret == -1 && (errno == EINTR || errno == ECONNREFUSED))
         goto read_data_again;
 
     if (p > 0 && DgRandom() <= p)
@@ -312,8 +312,7 @@ void *PrintOutThread(void *arg)
 
     int size = 0;
     int ret = 0;
-    double d = 0.0;
-    struct timeval tv;
+    int d = 0;
     struct filedatagram fd;
 
     g_threadStop = 0;
@@ -326,10 +325,8 @@ void *PrintOutThread(void *arg)
         if (ret < 0)
         {
             // produce a random double in the range (0.0, 1.0)
-            d = ((rand() + 1) / (double)(RAND_MAX + 2));
-            tv.tv_sec = 0;
-            tv.tv_usec = -1 * cli->arg->u * log(d);  // -1 * u * ln(random())
-            select(0, NULL, NULL, NULL, &tv);
+            d = -1 * cli->arg->u * log(DgRandom()) * 1000;
+            usleep(d);
             continue;
         }
 
@@ -449,9 +446,6 @@ int ConnectDgServer(dg_client *cli)
         // reconnect server with new port number
         ReconnectDgSrv(cli);
 
-        // create print out thread
-        CreateThread(cli);
-
         // send port ack
         ret = SendDgSrvNewPortAck(cli, &dg);
 
@@ -472,7 +466,7 @@ int ConnectDgServer(dg_client *cli)
 // 3. if there is more than 2 in-order segments, send ack to server
 void GetDatagram(dg_client *cli, int need)
 {
-    int ret = 0;
+    int ret = 0, old_win = cli->buf->rwnd.win;
     struct filedatagram dg;
 
     do
@@ -493,7 +487,10 @@ void GetDatagram(dg_client *cli, int need)
     if (ret != -1)
     {
         // segments in-order, send ack to server
-        SendDgSrvAck(cli, dg.seq + 1, 0/*dg.ts*/, cli->buf->rwnd.win, 1, "in-order & update rwnd");
+        if (old_win == 0)
+            SendDgSrvAck(cli, dg.seq + 1, 0/*dg.ts*/, cli->buf->rwnd.win, 1, "in-order & update rwnd");
+        else
+            SendDgSrvAck(cli, dg.seq + 1, 0/*dg.ts*/, cli->buf->rwnd.win, 0, "in-order");
     }
 }
 
@@ -517,6 +514,9 @@ int StartDgCli(dg_client *cli)
     // connect server
     if (ConnectDgServer(cli) < 0)
         return -1;
+
+    // create print out thread
+    CreateThread(cli);
 
     // set and start delayed ack timer
     if (SetDelayedAckTimer(cli))

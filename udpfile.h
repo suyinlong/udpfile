@@ -82,7 +82,7 @@ extern        void      free_ifi_info_plus(struct ifi_info *ifihead);
 void Dg_recvpacket(int, struct sockaddr *, socklen_t *, struct filedatagram *);
 
 void Dg_writepacket(int, const struct filedatagram *);
-void Dg_readpacket(int, struct filedatagram *);
+int Dg_readpacket(int, struct filedatagram *);
 int Dg_readpacket_nb(int, struct filedatagram *);
 
 void Dg_cli(int);

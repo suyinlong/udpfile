@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-23 12:43:25
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-26 17:04:53
+* @Last Modified time: 2015-10-27 11:59:41
 *
 * File:         dgutils.c
 * Description:  Datagram Utils C file
@@ -10,6 +10,7 @@
 
 #include "unprtt.h"
 
+uint8_t     rto_display;
 /*
  * Calculate the RTO value based on current estimators:
  * RTO = (srtt >> 3) + rttvar
@@ -33,6 +34,8 @@ static uint32_t rtt_minmax(uint32_t rto) {
  */
 void rtt_init(struct rtt_info *ptr) {
     struct timeval tv;
+
+    rto_display = 0;
 
     Gettimeofday(&tv, NULL);
     ptr->rtt_base = tv.tv_sec;
@@ -78,10 +81,12 @@ void rtt_stop(struct rtt_info *ptr, uint32_t ms) {
     if (ptr->rtt_rtt < 0)
         ptr->rtt_rtt = - ptr->rtt_rtt;
     ptr->rtt_rtt -= (ptr->rtt_rttvar >> 2);
-    ptr->rtt_rttvar += ptr->rtt_rtt; printf(", \x1b[47;30mrto = %d -> ", ptr->rtt_rto);
+    ptr->rtt_rttvar += ptr->rtt_rtt;
+    if (rto_display) printf(", rto = %d -> ", ptr->rtt_rto);
     ptr->rtt_rto = (ptr->rtt_srtt >> 3) + ptr->rtt_rttvar;
 
-    ptr->rtt_rto = rtt_minmax(RTT_RTOCALC(ptr)); printf("%d\x1b[0;0m\n", ptr->rtt_rto);
+    ptr->rtt_rto = rtt_minmax(RTT_RTOCALC(ptr));
+    if (rto_display) printf("%d", ptr->rtt_rto);
 
 }
 

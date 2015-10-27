@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-09 20:43:25
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-26 16:46:57
+* @Last Modified time: 2015-10-27 18:35:39
 *
 * File:         dgutils.c
 * Description:  Datagram Utils C file
@@ -84,15 +84,21 @@ void Dg_writepacket(int sockfd, const struct filedatagram *datagram) {
  *  recvfrom()
  * --------------------------------------------------------------------------
  */
-void Dg_readpacket(int sockfd, struct filedatagram *datagram) {
+int Dg_readpacket(int sockfd, struct filedatagram *datagram) {
     int n;
     char buff[DATAGRAM_PAYLOAD];
 
     bzero(datagram, DATAGRAM_PAYLOAD);
-    do {
-        n = read(sockfd, buff, DATAGRAM_PAYLOAD);
-    } while (n < 0);
-    memcpy(datagram, buff, n);
+
+Dg_readpacket_again:
+    n = read(sockfd, buff, DATAGRAM_PAYLOAD);
+    if (n >= 0) {
+        memcpy(datagram, buff, n);
+        return n;
+    } else if (errno == ECONNREFUSED)
+        goto Dg_readpacket_again;
+
+    return n;
 }
 
 /* --------------------------------------------------------------------------
@@ -114,10 +120,7 @@ int Dg_readpacket_nb(int sockfd, struct filedatagram *datagram) {
 
     bzero(datagram, DATAGRAM_PAYLOAD);
     int n = read(sockfd, buff, DATAGRAM_PAYLOAD);
-
-    if (n >= 0) {
+    if (n >= 0)
         memcpy(datagram, buff, n);
-        return n;
-    }
-    return -1;
+    return n;
 }

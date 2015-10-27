@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-13 10:01:16
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-26 17:02:58
+* @Last Modified time: 2015-10-27 11:57:19
 *
 * File:         rtserv.c
 * Description:  Reliable Transmission Server C file
@@ -24,7 +24,6 @@ uint16_t    cwnd;       // congestion window
 
 uint16_t    ssthresh;   // slow start threshold
 uint16_t    ca_c;       // congestion avoidance counter
-
 
 /* --------------------------------------------------------------------------
  *  congestion_avoidance

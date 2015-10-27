@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-26 16:57:14
+* @Last Modified time: 2015-10-27 12:57:55
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -20,6 +20,8 @@ struct rtt_info rttinfo;
 uint32_t buff_seq = 0;
 struct sender_window *swnd_head = NULL, *swnd_now = NULL, *swnd_tail = NULL;
 
+extern uint8_t rto_display;
+
 /* --------------------------------------------------------------------------
  *  Dg_cli_read
  *
@@ -27,14 +29,15 @@ struct sender_window *swnd_head = NULL, *swnd_now = NULL, *swnd_tail = NULL;
  *
  *  @param  : int                   sockfd
  *            struct filedatagram   *datagram
- *  @return : void
+ *  @return : int   # -1 if read error
+ *                  # otherwise, return the length of bytes read
  *  @see    : function#Dg_readpacket
  *
  *  For connected socket
  * --------------------------------------------------------------------------
  */
-void Dg_serv_read(int sockfd, struct filedatagram *datagram) {
-    Dg_readpacket(sockfd, datagram);
+int Dg_serv_read(int sockfd, struct filedatagram *datagram) {
+    return Dg_readpacket(sockfd, datagram);
 }
 
 /* --------------------------------------------------------------------------
@@ -269,7 +272,10 @@ uint32_t Dg_serv_ack(int sockfd) {
 
         if (fr_flag) {
             Dg_serv_write(sockfd, &swnd_head->datagram);
-            printf("[Server Child #%d]: Resend datagram #%d \x1b[43;31m(Fast Retransmission)\x1B[0;0m.\n", pid, swnd_head->datagram.seq);
+            if (isatty(fileno(stdout)))
+                printf("[Server Child #%d]: Resend datagram #%d \x1b[43;31m(Fast Retransmission)\x1B[0;0m.\n", pid, swnd_head->datagram.seq);
+            else
+                printf("[Server Child #%d]: Resend datagram #%d (Fast Retransmission).\n", pid, swnd_head->datagram.seq);
         }
 
         // free ACKed datagram from head
@@ -450,7 +456,10 @@ selectagain:
                 // timeout
                 Read(pfd[0], &c, 1);
                 if (rtt_timeout(&rttinfo) < 0) {
-                    printf("[Server Child #%d]: \x1b[41;33mTerminate for file datagram timeout.\x1B[0;0m\n", pid);
+                    if (isatty(fileno(stdout)))
+                        printf("[Server Child #%d]: \x1b[41;33mTerminate for file datagram timeout.\x1B[0;0m\n", pid);
+                    else
+                        printf("[Server Child #%d]: Terminate for file datagram timeout.\n", pid);
                     rttinit = 0;
                     errno = ETIMEDOUT;
                     return 0;
@@ -458,7 +467,10 @@ selectagain:
                 cc_timeout();
                 Dg_serv_write(sockfd, &swnd_head->datagram);
                 setAlarm(rtt_start(&rttinfo));
-                printf("[Server Child #%d]: Resend datagram #%d \x1b[43;31m(Timeout #%2d)\x1B[0;0m.\n", pid, swnd_head->datagram.seq, rttinfo.rtt_nrexmt);
+                if (isatty(fileno(stdout)))
+                    printf("[Server Child #%d]: Resend datagram #%d \x1b[43;31m(Timeout #%2d)\x1B[0;0m.\n", pid, swnd_head->datagram.seq, rttinfo.rtt_nrexmt);
+                else
+                    printf("[Server Child #%d]: Resend datagram #%d (Timeout #%2d).\n", pid, swnd_head->datagram.seq, rttinfo.rtt_nrexmt);
                 goto selectagain;
             }
             if (r == -1)
@@ -513,7 +525,10 @@ sendportagain:
     Dg_serv_send(listeningsockfd, client, sizeof(*client), &portFD);
     if (port_retry > 0) {
         Dg_serv_write(sockfd, &portFD);
-        printf("[Server Child #%d]: Resend port number %s \x1b[42;30m(Timeout #%2d)\x1B[0;0m.\n", pid, portFD.data, port_retry);
+        if (isatty(fileno(stdout)))
+            printf("[Server Child #%d]: Resend port number %s \x1b[42;30m(Timeout #%2d)\x1B[0;0m.\n", pid, portFD.data, port_retry);
+        else
+            printf("[Server Child #%d]: Resend port number %s (Timeout #%2d).\n", pid, portFD.data, port_retry);
     }
     port_retry++;
     setAlarm(rtt_start(&rttinfo));
@@ -525,14 +540,14 @@ sendportagain:
         FD_SET(pfd[0], &fds);
 
         r = select(max(sockfd, pfd[0]) + 1, &fds, NULL, NULL, NULL);
+
         if (r == -1 && errno == EINTR)
             continue;
         if (FD_ISSET(sockfd, &fds)) {
-            // datagram received
+            // datagram received, should receive ACK from connection socket
+            if (Dg_serv_read(sockfd, &FD) < 0)
+                continue;
             setAlarm(0);
-            // should receive ACK from connection socket
-            Dg_serv_read(sockfd, &FD);
-
             if (FD.ts > 0)
                 rtt_stop(&rttinfo, rtt_ts(&rttinfo) - FD.ts);
             if (FD.ack == 1 && FD.flag.pot == 1) {
@@ -548,7 +563,10 @@ sendportagain:
             // timeout
             Read(pfd[0], &c, 1);
             if (rtt_timeout(&rttinfo) < 0) {
-                printf("[Server Child #%d]: \x1b[41;33mTerminate for port datagram timeout.\x1B[0;0m\n", pid);
+                if (isatty(fileno(stdout)))
+                    printf("[Server Child #%d]: \x1b[41;33mTerminate for port datagram timeout.\x1B[0;0m\n", pid);
+                else
+                    printf("[Server Child #%d]: Terminate for port datagram timeout.\n", pid);
                 rttinit = 0;
                 errno = ETIMEDOUT;
                 break;
@@ -616,7 +634,10 @@ void Dg_serv(int listeningsockfd, struct socket_info *sock_head, struct sockaddr
 
     // output socket information
     struct sockaddr_in *sockaddr = (struct sockaddr_in *)&ss;
-    printf("[Server Child #%d]: UDP Server Socket (with new private port): \x1B[0;33m%s:%d\x1B[0;0m\n", pid, inet_ntoa(sockaddr->sin_addr), sockaddr->sin_port);
+    if (isatty(fileno(stdout)))
+        printf("[Server Child #%d]: UDP Server Socket (with new private port): \x1B[0;33m%s:%d\x1B[0;0m\n", pid, inet_ntoa(sockaddr->sin_addr), sockaddr->sin_port);
+    else
+        printf("[Server Child #%d]: UDP Server Socket (with new private port): %s:%d\n", pid, inet_ntoa(sockaddr->sin_addr), sockaddr->sin_port);
 
     // connect
     Connect(sockfd, client, sizeof(*client));
@@ -624,6 +645,7 @@ void Dg_serv(int listeningsockfd, struct socket_info *sock_head, struct sockaddr
     // init rtt
     if (rttinit == 0) {
         rtt_init(&rttinfo);
+        rto_display = 1;
         rttinit = 1;
     }
     Signal(SIGALRM, sig_alrm); // Signal handler

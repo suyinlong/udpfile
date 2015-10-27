@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-08 21:51:32
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-26 16:44:09
+* @Last Modified time: 2015-10-27 00:11:57
 *
 * File:         udpserver.c
 * Description:  Server C file
@@ -226,10 +226,16 @@ int main(int argc, char **argv) {
                 // check the packet contains a filename
                 if (datagram.flag.fln == 1) {
                     struct sockaddr_in *clientaddr_in = (struct sockaddr_in *)&clientfrom;
-                    printf("[Server]: Received a valid file request \x1B[0;34m\"%s\"\x1B[0;0m from client \x1B[0;33m%s:%d\x1B[0;0m to server \x1B[0;33m%s:%d\x1B[0;0m\n",
-                        datagram.data,
-                        Sock_ntop_host(&clientfrom, len), clientaddr_in->sin_port,
-                        Sock_ntop_host(sock->addr, sizeof(*(sock->addr))), port);
+                    if (isatty(fileno(stdout)))
+                        printf("[Server]: Received a valid file request \"%s\" from client \x1B[0;33m%s:%d\x1B[0;0m to server \x1B[0;33m%s:%d\x1B[0;0m\n",
+                            datagram.data,
+                            Sock_ntop_host(&clientfrom, len), clientaddr_in->sin_port,
+                            Sock_ntop_host(sock->addr, sizeof(*(sock->addr))), port);
+                    else
+                        printf("[Server]: Received a valid file request \"%s\" from client %s:%d to server %s:%d\n",
+                            datagram.data,
+                            Sock_ntop_host(&clientfrom, len), clientaddr_in->sin_port,
+                            Sock_ntop_host(sock->addr, sizeof(*(sock->addr))), port);
 
                     // check if the file request already handled
                     childpid = checkProcess(datagram.data, Sock_ntop_host(&clientfrom, len), clientaddr_in->sin_port);
