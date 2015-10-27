@@ -84,6 +84,19 @@ bool DgFifoEmpty(dg_fifo *fifo);
 **/
 bool DgFifoFull(dg_fifo *fifo);
 
+
+/****************************************
+*
+* @brief Receive buffer implementation
+*
+*****************************************/
+
+// define error code
+#define  DGBUF_RWND_FULL            -1  // receive window is full
+#define  DGBUF_SEGMENT_IN_BUF       -2  // segment is already in receive buffer
+#define  DGBUF_SEGMENT_OUTOFRANGE   -3  // segment is out of range
+#define  DGBUF_SEGMENT_OUTOFORDER   -4  // segment is out of order
+
 /*
 * @brief Define sliding window struct
 */
@@ -128,12 +141,13 @@ void DestroyDgRcvBuf(dg_rcv_buf *buf);
 * @brief  Write data to receive buffer
 * @param[in] buf  : receive buffer object
 * @param[in] data : struct filedatagram data
-* @return if > 0 return the ack 
-          if -1 rwnd is 0
-          if -2 segment is already in buffer
-          if -3 segment is out of rwnd range
+* @param[out] ack : ack number
+* @return if DGBUF_RWND_FULL rwnd is 0
+          if DGBUF_SEGMENT_IN_BUF segment is already in buffer
+          if DGBUF_SEGMENT_OUTOFRANGE segment is out of rwnd range
+          if DGBUF_SEGMENT_OUTOFORDER segment is out of order, ack will be set value
 **/
-uint32_t WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data);
+int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data, uint32_t *ack);
 
 /**
 * @brief  Read data from receive buffer object

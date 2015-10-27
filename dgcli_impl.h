@@ -40,7 +40,7 @@ typedef struct dg_client_t
     timer_t     delayedAckTimer;
     int         sock;
     int         newPort;
-    int         timeout;    
+    int         timeout;
 }dg_client;
 
 /**

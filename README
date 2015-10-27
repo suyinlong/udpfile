@@ -266,3 +266,6 @@ This program is a UDP socket based file transfer services server and client.
         Also in server part, we have SIG_CHLD signal handler in udpserver.c.
         The signal handler will remove registered item in process_info
         structure and terminate the child process correctly.
+
+
+2.  Client part (dgcli_impl.c)
