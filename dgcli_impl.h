@@ -18,12 +18,12 @@
 typedef struct dg_arg_t
 {
     char     srvIP[IP_BUFFSIZE];            // IP address of the server (not the hostname)
-    int      srvPort;                       // Well-known port number of server
+    int      srvPort;                       // well-known port number of server
     char     filename[FILENAME_BUFFSIZE];   // filename to be transferred
-    int      rcvWin;                        // Receiving sliding-window size (in number of datagrams)
-    int      seed;                          // Random generator seed value
-    double   p;                             // Probability p of datagram loss
-    int      u;                             // An exponential distribution controlling the rate value
+    int      rcvWin;                        // receiving sliding-window size (in number of datagrams)
+    int      seed;                          // random generator seed value
+    double   p;                             // probability p of datagram loss
+    int      u;                             // an exponential distribution controlling the rate value
 }dg_arg;
 
 /**
@@ -32,15 +32,17 @@ typedef struct dg_arg_t
 typedef struct rtt_info dg_rtt;
 typedef struct dg_client_t
 {
-    dg_arg     *arg;
-    dg_fifo    *fifo;
-    dg_rcv_buf *buf;
-    dg_rtt      rtt;
-    uint32_t    seq;
-    timer_t     delayedAckTimer;
-    int         sock;
-    int         newPort;
-    int         timeout;
+    dg_arg     *arg;                // dg_arg object
+    dg_fifo    *fifo;               // fifo object
+    dg_rcv_buf *buf;                // receive buffer object
+    dg_rtt      rtt;                // rtt object
+    uint32_t    seq;                // client segment sequence
+    timer_t     delayedAckTimer;    // delayed ack timer
+    int         sock;               // UDP socket
+    int         newPort;            // new port number of server
+    int         timeout;            // time out value
+    int         printSeq;           // print sequence flag, if 1 print on screen  
+    int         printFile;          // print file content flag, if 1 print on screen
 }dg_client;
 
 /**

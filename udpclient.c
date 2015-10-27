@@ -18,6 +18,65 @@ int     max_winsize = 0;
 int     seed = 0;
 double  p = 0.0;
 int     mu = 0;
+int     print_seq = 1;
+int     print_file = 1;
+
+/* --------------------------------------------------------------------------
+*  usage
+*
+*  Print usage
+*
+*  @param  : void
+*  @return : void
+*
+* --------------------------------------------------------------------------
+*/
+void usage()
+{
+    printf("Usage: client -s -f [-h]\n");
+    printf("Options:\n");
+    printf("  -s       disable print seq and ack informations\n");
+    printf("  -f       disable print file contents\n");
+    printf("  -h       display this help\n");
+
+    exit(0);
+}
+
+/* --------------------------------------------------------------------------
+*  parseArgs
+*
+*  Parse the arguments
+*
+*  @param  : int argc
+*  @param  : char **argv
+*  @return : void
+*
+* --------------------------------------------------------------------------
+*/
+void parseArgs(int argc, char **argv)
+{
+    // parse the user command
+    int c;
+    while ((c = getopt(argc, argv, "sfh?")) != -1)
+    {
+        switch (c)
+        {
+        case 's':
+            print_seq = 0;
+            break;
+        case 'f':
+            print_file = 0;
+            break;
+        case 'h':
+        case '?':
+            usage();
+            break;
+        default:
+            usage();
+            break;
+        }
+    }
+}
 
 /* --------------------------------------------------------------------------
  *  readArguments
@@ -202,6 +261,8 @@ int main(int argc, char **argv) {
     struct sockaddr_in      servaddr, clientaddr;
     struct sockaddr_storage ss;
 
+    parseArgs(argc, argv);
+
     readArguments();
     ifihead = prifinfo_plus();
 
@@ -267,6 +328,8 @@ int main(int argc, char **argv) {
 
     // create a client
     dg_client *cli = CreateDgCli(&arg, sockfd);
+    cli->printSeq = print_seq;
+    cli->printFile = print_file;
 
     // start the client
     StartDgCli(cli);

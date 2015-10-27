@@ -23,9 +23,9 @@
 */
 typedef struct dg_node_t
 {
-    int        size;
-    char      *data;
-    struct dg_node_t *next;
+    int        size;        // data size
+    char      *data;        // data
+    struct dg_node_t *next; // next node
 }dg_node;
 
 /**
@@ -33,11 +33,11 @@ typedef struct dg_node_t
 */
 typedef struct dg_fifo_t
 {
-    int      size;
-    int      curSize;
-    dg_node *head;
-    dg_node *curData;
-    pthread_mutex_t	mutex;
+    int      size;         // fifo size
+    int      curSize;      // current fifo size
+    dg_node *head;         // head node
+    dg_node *curData;      // current node
+    pthread_mutex_t	mutex; // mutex value
 }dg_fifo;
 
 /**
@@ -139,15 +139,16 @@ void DestroyDgRcvBuf(dg_rcv_buf *buf);
 
 /**
 * @brief  Write data to receive buffer
-* @param[in] buf  : receive buffer object
-* @param[in] data : struct filedatagram data
-* @param[out] ack : ack number
+* @param[in] buf   : receive buffer object
+* @param[in] data  : struct filedatagram data
+* @param[in] print : print on screen flag
+* @param[out] ack  : ack number
 * @return if DGBUF_RWND_FULL rwnd is 0
           if DGBUF_SEGMENT_IN_BUF segment is already in buffer
           if DGBUF_SEGMENT_OUTOFRANGE segment is out of rwnd range
           if DGBUF_SEGMENT_OUTOFORDER segment is out of order, ack will be set value
 **/
-int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data, uint32_t *ack);
+int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data, int print, uint32_t *ack);
 
 /**
 * @brief  Read data from receive buffer object

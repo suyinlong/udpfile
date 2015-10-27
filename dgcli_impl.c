@@ -30,6 +30,8 @@ dg_client *CreateDgCli(const dg_arg *arg, int sock)
     cli->sock = sock;
     cli->timeout = RCV_TIMEOUT;
     cli->seq = 0;
+    cli->printSeq = 1;
+    cli->printFile = 1;
 
     // create a receive buffer, the buffer size is
     // twice the receive sliding window size
@@ -134,13 +136,16 @@ int RecvDataTimeout(int fd, void *data, int *size, int timeout, float p)
     // restore previous signal handler
     Signal(SIGALRM, sigfunc);
 #endif
+
 read_data_again:
-    ret = Dg_readpacket(fd, data);
-    if (ret == -1 && errno == EINTR)
+    Dg_readpacket(fd, data);
+    if (errno == EINTR)
         goto read_data_again;
+
     if (p > 0 && DgRandom() <= p)
         // discard the datagram
         goto read_data_again;
+    
     return ret;
 }
 
@@ -260,8 +265,9 @@ void SendDgSrvAck(dg_client *cli, uint32_t ack, uint32_t ts, int wnd, int wndFla
     if (DgRandom() > cli->arg->p)
         Dg_writepacket(cli->sock, &dg);
 
-    printf("[Debug #%d]: Send ACK #%d [ack=%d seq=%d ts=%d win=%d flag.wnd=%d] (%s)\n",
-        pthread_self(), dg.ack, dg.ack, dg.seq, dg.ts, dg.wnd, dg.flag.wnd, tag);
+    if (cli->printSeq)
+        printf("[Client #%d]: Send ACK #%d [ack=%d seq=%d ts=%d win=%d flag.wnd=%d] (%s)\n",
+            pthread_self(), dg.ack, dg.ack, dg.seq, dg.ts, dg.wnd, dg.flag.wnd, tag);
 }
 
 // handle client to finish work
@@ -289,7 +295,8 @@ void HandleDgClientFin(dg_client *cli)
         }
     }
 
-    printf("[Client]: Wait timer to clean close\n");
+    if (cli->printSeq)
+        printf("[Client]: Wait timer to clean close\n");
 }
 
 //  print file content thread
@@ -330,9 +337,8 @@ void *PrintOutThread(void *arg)
             "\n--------------------\n%s\n--------------------\n", \
             pthread_self(), fd.seq, fd.ack, fd.ts, fd.wnd, fd.flag.eof, fd.len, fd.data);
 
-#ifdef PRINT_FILE_DATA
-        printf("%s", fd.data);
-#endif
+        if (cli->printFile)
+            printf("%s", fd.data);
 
         if (fd.flag.eof == 1)
         {
@@ -455,7 +461,7 @@ int ConnectDgServer(dg_client *cli)
 
     uint32_t ack = 0;
     // save first segment
-    WriteDgRcvBuf(cli->buf, &dg, &ack);
+    WriteDgRcvBuf(cli->buf, &dg, cli->printSeq, &ack);
 
     return 0;
 }
@@ -526,7 +532,7 @@ int StartDgCli(dg_client *cli)
         // receive data
         ret = RecvDataTimeout(cli->sock, &dg, &sz, cli->timeout, cli->arg->p);
         if (ret < 0)
-        { printf("recvDataTimeout: %s\n", strerror(errno));
+        {
             if (errno == ETIMEDOUT || errno == EAGAIN)
                 continue;
             else
@@ -562,7 +568,7 @@ int StartDgCli(dg_client *cli)
         int ret = 0;
         uint32_t ack = 0, ts = 0;
         // put data to receive buffer
-        ret = WriteDgRcvBuf(cli->buf, &dg, &ack);
+        ret = WriteDgRcvBuf(cli->buf, &dg, cli->printSeq, &ack);
         switch (ret)
         {
         case DGBUF_RWND_FULL:   // sliding window size is zero

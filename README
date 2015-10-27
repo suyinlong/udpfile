@@ -32,7 +32,11 @@ the same directory.
 Run the programs:
 
     ./server &          # run the server in daemon mode
+    
     ./client            # run the client
+    Option:
+      -s  this option will disable function of printing seq and ack information 
+      -f  this option will disable function of printing file contents, you can use option   
 
 
 SYSTEM DOCUMENTATION
@@ -283,17 +287,106 @@ This program is a UDP socket based file transfer services server and client.
             same host, client will random chooses an IP address to IPclient.
             The implemented code is in function designateAddr().
               				 
-    b.  Connect server with filename
-        The client first send a    
-		
-		
-    c.  Receive buffer and sliding Window
-		
-		
-    d.  Culmutive ACK
+    b.  Connect server
+        Client creates a UDP socket and binds on IPclient, with 0 as the port 
+        number. Kernel binds an ephemeral port to the socket. First, client sends 
+        datagram with filename to the well known port of server. Second, client
+        waits for server's ACK for filename. The ACK includes the ephemeral port 
+        number of server. Third, client connects the ephemeral port number and 
+        uses it for the subsequent communication. Client will go back to first
+        step when timeout caused by loosing packets happens. This RTO mechanism
+        is implemented in ConnectDgServer() (in dgcli_impl.c) function.
+           
+    c.  Receive buffer and sliding window
+        
+        Receive buffer is a circular array, and it's size is twice of sliding 
+        window. Data structs of both receive sliding window and buffer are defined
+        in dgbuffer.h (line: 103-125).
+        
+   			typedef struct dg_sliding_wnd_t
+				{
+				    int  base;   // base window index
+				    int  top;    // top window index
+				    int  next;   // expected data index
+				    int  size;   // sliding window size
+				    int  win;    // remain window size
+				}dg_sliding_wnd;
+
+				typedef struct dg_rcv_buf_t
+				{
+				    uint32_t        frameSize;      // buffer frame size
+				    uint32_t        firstSeq;       // first seq number
+				    uint32_t        nextSeq;        // expected seq number
+				    uint32_t        ts;             // ack's timestamp
+				    uint32_t        acked;          // last ack number
+				    pthread_mutex_t	mutex;          // mutex value
+				    dg_sliding_wnd  rwnd;           // receive sliding window
+				    struct filedatagram *buffer;    // buffer array, the size is frameSize
+				}dg_rcv_buf;
+				
+				The realization of write mechanism:
+				The location of received datagram in reveive buffer is decided by index.
+				The formular to calculate index is as following:
+					index = seq % size.
+					- "seq" is the sequence number of current datagram
+					- "size" is the receive buffer size
+				The realization of write mechanism is through WriteDgRcvBuf()	function 
+				in dgbuffer.c.
+				
+				The realization of read mechanism:
+				There are two conditions needed,
+					- Two or more than two consecutive datagrams are in receive window
+					- Delayed ACK is timeout and at least one in-order datagram is in 
+					  receive window.
+				The realization of read mechanism is through ReadDgRcvBuf() function in
+				dgbuffer.c.						
     
+    d.  Culmutive ACK mechanism
+        First, activate the 500ms-period timer through SetDelayedAckTimer() 
+        function in dgcli_impl.c.The timer checks if there is in-order data in
+        receive buffer, then writes in-order data into FIFO. Second, main thread
+        reads the data from socket, then caches them in receive buffer. Main 
+        thread sends ACK through StartDgCli() function in main loop when any of 
+        the following conditions meets:
+        i)   Arrival of in-order segment with expected seq
+          	 - Delayed ack timer is timeout.
+           	 - One other segment has ACK pending.
+        ii)  Arrival of out-of-order segment higher-than-expect seq
+             - Send duplicate ACK, indicating seq of next expected segment.
+        iii) Arrival of segment that partially or completely fills gap
+             - Send ACK, provided that segment starts at lower end of gap.    
     
-    e.  EOF clean close
-    
-    
-    f.  Print thread
+    e.  Print thread
+        Main thread and child thread communicate to each other using a thread-
+        safe FIFO(First In First Out) queue. Its implementation uses a linear 
+        list. Data struct of FIFO is defined in dgbuffer.h (line: 24-41).        
+        
+        typedef struct dg_node_t
+				{
+				    int        size;        // data size
+				    char      *data;        // data
+				    struct dg_node_t *next; // next node
+				}dg_node;
+				
+				typedef struct dg_fifo_t
+				{
+				    int      size;         // fifo size
+				    int      curSize;      // current fifo size
+				    dg_node *head;         // head node
+				    dg_node *curData;      // current node
+				    pthread_mutex_t	mutex; // mutex value
+				}dg_fifo;
+				        
+        When main thread finds readable datagram in receive buffer, it writes 
+        the datagram into FIFO. This mechanism is implemented through GetDatagram()
+        function. Child thread reads FIFO list cyclically; prints data of datagram
+        when it finds data in FIFO or sleepes for some time when finds no data in
+        FIFO. This mechanism is implemented through PrintOutThread() function.
+				
+    f.  Disconnect server and exit
+        When child thread receives a datagram including EOF flag, it will quit
+        the cycle and set g_threadStop=1. Child thread exits. When main thread 
+        receives a datagram including EOF flag, it will activate a 30s timer 
+        to detect if print thread finishes all data. If yes, main thread will 
+        quit; if no, main thread will wait until print thread finished all 
+        datagram.

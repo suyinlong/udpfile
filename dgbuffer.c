@@ -231,7 +231,7 @@ int CheckSeqRange(dg_rcv_buf *buf, uint32_t idx)
     return 0;
 }
 
-int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data, uint32_t *ack)
+int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data, int print, uint32_t *ack)
 {
     // check sliding window 
     if (buf->rwnd.win == 0)
@@ -246,7 +246,8 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data, uint32_t *ac
 
     if (buf->firstSeq > 0 && buf->buffer[idx].seq == data->seq)
     {
-        printf("[Client]: Receive datagram #%d, seq=%d, is already in buffer\n", data->seq, data->seq);
+        if (print)
+            printf("[Client]: Receive datagram #%d, seq=%d, is already in buffer\n", data->seq, data->seq);
         return DGBUF_SEGMENT_IN_BUF;
     }
     
@@ -268,8 +269,9 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data, uint32_t *ac
     {
         if (CheckSeqRange(buf, idx) < 0)
         {
-            printf("[Client]: Receive datagram #%d, seq=%d idx=%d, is out of range, rwin[%d, %d] next=%d win=%d\n",
-                data->seq, data->seq, idx, buf->rwnd.base, buf->rwnd.top, buf->rwnd.next, buf->rwnd.win);
+            if (print)
+                printf("[Client]: Receive datagram #%d, seq=%d idx=%d, is out of range, rwin[%d, %d] next=%d win=%d\n",
+                    data->seq, data->seq, idx, buf->rwnd.base, buf->rwnd.top, buf->rwnd.next, buf->rwnd.win);
             DgUnlock(buf->mutex);
             return DGBUF_SEGMENT_OUTOFRANGE;
         }
@@ -298,11 +300,12 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data, uint32_t *ac
     memcpy(&buf->buffer[idx], data, sizeof(struct filedatagram));
     rwnd->win--;
 
-    printf("[Debug #%d]: Receive datagram #%d [seq=%d ack=%d ts=%d], rwnd[base=%d next=%d top=%d win=%d] flag[eof=%d pob=%d pot=%d]\n",
-        pthread_self(), data->seq, data->seq, data->ack, data->ts, 
-        rwnd->base, rwnd->next, rwnd->top, rwnd->win,
-        data->flag.eof, data->flag.pob, data->flag.pot, 
-        buf->rwnd.win);
+    if (print)
+    {
+        printf("[Client #%d]: Receive datagram #%d [seq=%d ack=%d ts=%d] flag[eof=%d pob=%d] rwnd=%d\n",
+            pthread_self(), data->seq, data->seq, data->ack, data->ts,
+            data->flag.eof, data->flag.pob, rwnd->win);
+    }        
 
     // unlock
     DgUnlock(buf->mutex);
