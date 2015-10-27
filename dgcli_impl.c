@@ -527,7 +527,7 @@ int StartDgCli(dg_client *cli)
         // receive data
         ret = RecvDataTimeout(cli->sock, &dg, &sz, cli->timeout, cli->arg->p);
         if (ret < 0)
-        { printf("recvDataTimeout: %s\n", strerror(errno));
+        {
             if (errno == ETIMEDOUT || errno == EAGAIN)
                 continue;
             else
