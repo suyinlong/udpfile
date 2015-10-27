@@ -136,7 +136,7 @@ int RecvDataTimeout(int fd, void *data, int *size, int timeout, float p)
 #endif
 read_data_again:
     ret = Dg_readpacket(fd, data);
-    if (ret == -1 && errno == EINTR)
+    if (ret == -1 && (errno == EINTR || errno == ECONNREFUSED))
         goto read_data_again;
     if (p > 0 && DgRandom() <= p)
         // discard the datagram
@@ -466,7 +466,7 @@ int ConnectDgServer(dg_client *cli)
 // 3. if there is more than 2 in-order segments, send ack to server
 void GetDatagram(dg_client *cli, int need)
 {
-    int ret = 0;
+    int ret = 0, old_win = cli->buf->rwnd.win;
     struct filedatagram dg;
 
     do
@@ -487,7 +487,8 @@ void GetDatagram(dg_client *cli, int need)
     if (ret != -1)
     {
         // segments in-order, send ack to server
-        SendDgSrvAck(cli, dg.seq + 1, 0/*dg.ts*/, cli->buf->rwnd.win, 1, "in-order & update rwnd");
+        if (old_win == 0)
+            SendDgSrvAck(cli, dg.seq + 1, 0/*dg.ts*/, cli->buf->rwnd.win, 1, "in-order & update rwnd");
     }
 }
 
