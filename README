@@ -17,6 +17,8 @@ Make sure the library is in right location:
 
     libunp.a    /home/courses/cse533/Stevens/unpv13e_solaris2.10/libunp.a
 
+Unpack
+
 Execute the following from the directory to compile the source code:
 
     make                # use "make" to compile the source
