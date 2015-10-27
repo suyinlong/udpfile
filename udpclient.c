@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-09 09:49:37
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-22 23:28:32
+* @Last Modified time: 2015-10-26 17:07:26
 *
 * File:         udpclient.c
 * Description:  Client C file
@@ -27,9 +27,6 @@ int     mu = 0;
  *  @param  : void
  *  @return : void
  *  @see    : file#client.in,
- *            var#IPserver, var#port,
- *            var#filename,
- *            var#max_winsize, var#seed, var#p, var#mu
  *
  *  Read arguments from "client.in"
  *    Line 1: <STRING>      -> char IPserver[IP_BUFFSIZE]
@@ -129,8 +126,8 @@ struct ifi_info *prifinfo_plus() {
  *
  *  Designate IPserver and IPclient address
  *
- *  @param  : struct ifi_info *
- *  @return : int
+ *  @param  : struct ifi_info *ifihead
+ *  @return : int   # 1 if the IPserver and IPclient are local
  *
  *  Check if server is on the same host (loopback)
  *  Check if server is on the same subnet (match the longest prefix)
@@ -191,7 +188,7 @@ int designateAddr(struct ifi_info *ifihead) {
  *  @return : int
  *  @see    : function#readArguments,
  *            function#prifinfo_plus,
- *            function#designateAddr
+ *            function#designateAddr,
  *            function#Dg_cli
  *
  *  Server entry function

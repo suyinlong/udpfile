@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-09 20:43:25
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-26 11:02:30
+* @Last Modified time: 2015-10-26 16:46:57
 *
 * File:         dgutils.c
 * Description:  Datagram Utils C file
@@ -15,9 +15,9 @@
  *
  *  Datagram sendto function
  *
- *  @param  : int sockfd,
- *            struct sockaddr *to,
- *            socklen_t addrlen,
+ *  @param  : int                       sockfd,
+ *            struct sockaddr           *to,
+ *            socklen_t                 addrlen,
  *            const struct filedatagram *datagram
  *  @return : void
  *
@@ -25,7 +25,7 @@
  * --------------------------------------------------------------------------
  */
 void Dg_sendpacket(int sockfd, struct sockaddr *to, socklen_t addrlen, const struct filedatagram *datagram) {
-    size_t n = DATAGRAM_HEADERSIZE + datagram->len;
+    int n = DATAGRAM_HEADERSIZE + datagram->len;
 
     Sendto(sockfd, (char *)datagram, n, 0, to, addrlen);
 }
@@ -35,10 +35,10 @@ void Dg_sendpacket(int sockfd, struct sockaddr *to, socklen_t addrlen, const str
  *
  *  Datagram recvfrom function
  *
- *  @param  : int sockfd,
- *            struct sockaddr *from,
- *            socklen_t *addrlen,
- *            struct filedatagram *datagram
+ *  @param  : int                   sockfd,
+ *            struct sockaddr       *from,
+ *            socklen_t             *addrlen,
+ *            struct filedatagram   *datagram
  *  @return : void
  *
  *  For the unconnected socket, use recvfrom() to fill out packet
@@ -48,7 +48,7 @@ void Dg_recvpacket(int sockfd, struct sockaddr *from, socklen_t *addrlen, struct
     char buff[DATAGRAM_PAYLOAD];
 
     bzero(datagram, DATAGRAM_PAYLOAD);
-    size_t n = Recvfrom(sockfd, buff, DATAGRAM_PAYLOAD, 0, from, addrlen);
+    int n = Recvfrom(sockfd, buff, DATAGRAM_PAYLOAD, 0, from, addrlen);
     memcpy(datagram, buff, n);
 }
 
@@ -57,7 +57,7 @@ void Dg_recvpacket(int sockfd, struct sockaddr *from, socklen_t *addrlen, struct
  *
  *  Datagram write function
  *
- *  @param  : int sockfd,
+ *  @param  : int                       sockfd,
  *            const struct filedatagram *datagram
  *  @return : void
  *
@@ -66,7 +66,7 @@ void Dg_recvpacket(int sockfd, struct sockaddr *from, socklen_t *addrlen, struct
  * --------------------------------------------------------------------------
  */
 void Dg_writepacket(int sockfd, const struct filedatagram *datagram) {
-    size_t n = DATAGRAM_HEADERSIZE + datagram->len;
+    int n = DATAGRAM_HEADERSIZE + datagram->len;
 
     Write(sockfd, (char *)datagram, n);
 }
@@ -76,8 +76,8 @@ void Dg_writepacket(int sockfd, const struct filedatagram *datagram) {
  *
  *  Datagram read function
  *
- *  @param  : int sockfd,
- *            struct filedatagram *datagram
+ *  @param  : int                   sockfd,
+ *            struct filedatagram   *datagram
  *  @return : void
  *
  *  For the connected socket, use read() to receive packets instead of
@@ -100,9 +100,10 @@ void Dg_readpacket(int sockfd, struct filedatagram *datagram) {
  *
  *  Datagram read function (Non-blocking)
  *
- *  @param  : int sockfd,
- *            struct filedatagram *datagram
- *  @return : int
+ *  @param  : int                   sockfd,
+ *            struct filedatagram   *datagram
+ *  @return : int   # -1 if read error
+ *                  # otherwise, return the length of bytes read
  *
  *  For the connected socket, use read() to receive packets instead of
  *  recvfrom()

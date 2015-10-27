@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-08 21:51:32
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-25 20:21:39
+* @Last Modified time: 2015-10-26 16:44:09
 *
 * File:         udpserver.c
 * Description:  Server C file
@@ -21,7 +21,7 @@ struct process_info *proc_head = NULL, *proc = NULL;
  *
  *  @param  : void
  *  @return : void
- *  @see    : file#server.in, var#port, var#max_winsize
+ *  @see    : file#server.in
  *
  *  Read arguments from "server.in"
  *    Line 1: <INTEGER>     -> int port
@@ -42,8 +42,8 @@ void readArguments() {
  *
  *  Bind all unicast IP address to sockets
  *
- *  @param  : struct socket_info **
- *  @return : int
+ *  @param  : struct socket_info ** sock_list
+ *  @return : int   # max socket descriptor number
  *  @see    : function#Get_ifi_info_plus, struct#socket_info
  *
  *  Use Get_ifi_info_plus() to get interfaces information
@@ -106,8 +106,11 @@ int bind_sockets(struct socket_info **sock_list) {
  *
  *  @param  : int signo
  *  @return : void
+ *  @see    : struct#process_info
  *
- *  Catch SIGCHLD signal and terminate all the zombie children
+ *  Catch SIGCHLD signal
+ *  Remove the items in process_info structure and terminate all the zombie
+ *  children
  * --------------------------------------------------------------------------
  */
 void sig_chld(int signo) {
@@ -139,12 +142,13 @@ void sig_chld(int signo) {
 /* --------------------------------------------------------------------------
  *  checkProcess
  *
- *  Request check function
+ *  File request check function
  *
  *  @param  : char  *filename
  *            char  *address
  *            int   port
- *  @return : int
+ *  @return : int   # 0 if the request is new
+ *                  # otherwise, return the process id
  *
  *  Check if the file request is already handled by a child process
  * --------------------------------------------------------------------------
