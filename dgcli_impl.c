@@ -443,9 +443,6 @@ int ConnectDgServer(dg_client *cli)
         // reconnect server with new port number
         ReconnectDgSrv(cli);
 
-        // create print out thread
-        CreateThread(cli);
-
         // send port ack
         ret = SendDgSrvNewPortAck(cli, &dg);
 
@@ -489,6 +486,8 @@ void GetDatagram(dg_client *cli, int need)
         // segments in-order, send ack to server
         if (old_win == 0)
             SendDgSrvAck(cli, dg.seq + 1, 0/*dg.ts*/, cli->buf->rwnd.win, 1, "in-order & update rwnd");
+        else
+            SendDgSrvAck(cli, dg.seq + 1, 0/*dg.ts*/, cli->buf->rwnd.win, 0, "in-order");
     }
 }
 
@@ -512,6 +511,9 @@ int StartDgCli(dg_client *cli)
     // connect server
     if (ConnectDgServer(cli) < 0)
         return -1;
+
+    // create print out thread
+    CreateThread(cli);
 
     // set and start delayed ack timer
     if (SetDelayedAckTimer(cli))
