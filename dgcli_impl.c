@@ -21,6 +21,7 @@ int        g_threadStop;
 
 void   GetDatagram(dg_client *cli, int need);
 double DgRandom();
+void   SetRTTTimer(uint32_t timeout);
 
 dg_client *CreateDgCli(const dg_arg *arg, int sock)
 {
@@ -105,12 +106,14 @@ void ReconnectDgSrv(dg_client *cli)
 // receive data with timer
 int RecvDataTimeout(int fd, void *data, int *size, int timeout, float p)
 {
+    int	ret = 0;
+#if 0
     Sigfunc *sigfunc;
     // set alarm
-    //sigfunc = Signal(SIGALRM, HandleRecvTimeout);
-    //alarm(timeout);
+    sigfunc = Signal(SIGALRM, HandleRecvTimeout);
+    alarm(timeout);
 
-    int	ret = 0;
+    
     // read data
     if ((ret = read(fd, data, *size)) < 0)
     {
@@ -127,9 +130,18 @@ int RecvDataTimeout(int fd, void *data, int *size, int timeout, float p)
 
 
     // turn off the alarm
-    //alarm(0);
+    alarm(0);
     // restore previous signal handler
-    //Signal(SIGALRM, sigfunc);
+    Signal(SIGALRM, sigfunc);
+#endif
+
+    Dg_readpacket(fd, data);
+    if (p > 0 && DgRandom() <= p)
+    {
+        // discard the datagram
+        errno = EAGAIN;
+        ret = -1;
+    }
 
     return ret;
 }
@@ -140,8 +152,6 @@ int SendDgSrvFilenameReq(dg_client *cli)
     struct filedatagram sndData, rcvData;
     // init filedatagram
     bzero(&sndData, sizeof(sndData));
-    bzero(&rcvData, sizeof(rcvData));
-
     sndData.seq = cli->seq;
     sndData.ts = rtt_ts(&cli->rtt);
     sndData.wnd = cli->buf->rwnd.size;
@@ -149,14 +159,11 @@ int SendDgSrvFilenameReq(dg_client *cli)
     sndData.len = strlen(cli->arg->filename);
     strcpy(sndData.data, cli->arg->filename);
 
-#if 0
     // calc timeout value & start timer
-    alarm(rtt_start(&cli->rtt));
+    SetRTTTimer(rtt_start(&cli->rtt));
 
     if (sigsetjmp(g_jmpbuf, 1) != 0)
     {
-        printf("nrexmt=%d base=%d rto=%d RTT_MAXNREXMT=%d\n", 
-            cli->rtt.rtt_nrexmt, cli->rtt.rtt_base, cli->rtt.rtt_rto, RTT_MAXNREXMT);
         if (rtt_timeout(&cli->rtt) < 0)
         {
             errno = 0;
@@ -166,10 +173,8 @@ int SendDgSrvFilenameReq(dg_client *cli)
         {
             errno = ETIMEDOUT;  // timeout, retransmitting
         }
-        alarm(0);
         return -1;
     }
-#endif
     
     // if random() <= p, discard the datagram (just don't send)
     if (DgRandom() > cli->arg->p)
@@ -177,6 +182,7 @@ int SendDgSrvFilenameReq(dg_client *cli)
 
 read_port_reply_again:
     
+    bzero(&rcvData, sizeof(rcvData));
     Dg_readpacket(cli->sock, &rcvData);
     if (cli->arg->p > 0 && DgRandom() <= cli->arg->p)
     {
@@ -184,8 +190,8 @@ read_port_reply_again:
         goto read_port_reply_again;
     }
 
-    // stop SIGALRM timer
-    alarm(0);
+    // stop rtt timer
+    SetRTTTimer(0);
     // calculate & store new RTT estimator values
     rtt_stop(&cli->rtt, rtt_ts(&cli->rtt) - rcvData.ts);
 
@@ -260,7 +266,7 @@ void SendDgSrvAck(dg_client *cli, uint32_t ack, uint32_t ts, int wnd, int wndFla
         pthread_self(), dg.ack, dg.ack, dg.seq, dg.ts, dg.wnd, dg.flag.wnd, tag);
 }
 
-// 
+// handle client to finish work
 void HandleDgClientFin(dg_client *cli)
 {
     Signal(SIGALRM, HandleFinTimeout);
@@ -268,6 +274,7 @@ void HandleDgClientFin(dg_client *cli)
     // start fin timer
     alarm(FIN_TIMEWAIT);
 
+    dg_client *dc = cli;
     if (sigsetjmp(g_jmpbuf, 1) != 0)
     {
         if (g_threadStop == 1)
@@ -280,9 +287,11 @@ void HandleDgClientFin(dg_client *cli)
         else
         {
             // reset
-            HandleDgClientFin(cli);
+            HandleDgClientFin(dc);
         }
     }
+
+    printf("[Client]: Wait timer to clean close\n");
 }
 
 //  print file content thread
@@ -347,6 +356,18 @@ void CreateThread(dg_client *cli)
     printf("[Client]: Create thread ok, tid=%d\n", tid);
 }
 
+// set rtt timer
+void SetRTTTimer(uint32_t timeout)
+{
+    struct itimerval it;
+    it.it_value.tv_sec = timeout / 1000;
+    it.it_value.tv_usec = (timeout % 1000) * 1000;
+    it.it_interval.tv_sec = 0;
+    it.it_interval.tv_usec = 0;
+
+    setitimer(ITIMER_REAL, &it, NULL);
+}
+
 // set delayed ack timer
 int SetDelayedAckTimer(dg_client *cli)
 {
@@ -407,30 +428,13 @@ int ConnectDgServer(dg_client *cli)
 
     do
     {
-        // calc timeout value & start timer
-        alarm(rtt_start(&cli->rtt));
-
-        if (sigsetjmp(g_jmpbuf, 1) != 0)
-        {
-            //printf("nrexmt=%d base=%d rto=%d RTT_MAXNREXMT=%d\n", \
-                cli->rtt.rtt_nrexmt, cli->rtt.rtt_base, cli->rtt.rtt_rto, RTT_MAXNREXMT);
-            if (rtt_timeout(&cli->rtt) < 0)
-            {
-                err_msg("[Client]: No response from server %s:%d, giving up", cli->arg->srvIP, cli->arg->srvPort);
-                return -1;
-            }
-            
-            alarm(0);
-            continue;
-        }
-
         // connect server
         ret = SendDgSrvFilenameReq(cli);
         if (ret < 0)
         {
             if (errno == ETIMEDOUT)
             {
-                printf("[Client]: Send filename to server %s:%d error: %s\n", cli->arg->srvIP, cli->arg->srvPort, strerror(errno));
+                printf("[Client]: Send filename to server %s:%d error #%d: %s\n", cli->arg->srvIP, cli->arg->srvPort, cli->rtt.rtt_nrexmt, strerror(errno));
                 continue;
             }
 
@@ -443,17 +447,7 @@ int ConnectDgServer(dg_client *cli)
 
         // send port ack
         ret = SendDgSrvNewPortAck(cli, &dg);
-        if (ret < 0)
-        {
-            if (errno == ETIMEDOUT || errno == EAGAIN)
-            {
-                printf("[Client]: Send port ack to server %s:%d error: %s\n", cli->arg->srvIP, cli->newPort, strerror(errno));
-                // reconnect well known port number
-                cli->newPort = cli->arg->srvPort;
-                ReconnectDgSrv(cli);
-                continue;
-            }
-        }
+        
     } while (ret < 0);
 
     printf("[Client]: Connect server %s:%d ok\n", cli->arg->srvIP, cli->newPort);
