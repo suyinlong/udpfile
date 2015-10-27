@@ -486,7 +486,7 @@ void GetDatagram(dg_client *cli, int need)
     if (ret != -1)
     {
         // segments in-order, send ack to server
-        SendDgSrvAck(cli, dg.seq + 1, 0/*dg.ts*/, cli->buf->rwnd.win, 1, "in-order");
+        SendDgSrvAck(cli, dg.seq + 1, 0/*dg.ts*/, cli->buf->rwnd.win, 1, "in-order & update rwnd");
     }
 }
 
@@ -573,7 +573,7 @@ int StartDgCli(dg_client *cli)
 
         case DGBUF_SEGMENT_IN_BUF:      // segment is already in receive buffer 
         case DGBUF_SEGMENT_OUTOFRANGE:  // segment is out of range
-            SendDgSrvAck(cli, dg.seq + 1, dg.ts, cli->buf->rwnd.win, 0, "already-in or out-of-range");
+            SendDgSrvAck(cli, cli->buf->nextSeq, dg.ts, cli->buf->rwnd.win, 0, "already-in or out-of-range");
             continue;
 
         case DGBUF_SEGMENT_OUTOFORDER:  // out of order, send duplicate ack

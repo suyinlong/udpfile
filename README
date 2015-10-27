@@ -6,8 +6,8 @@ Student ID  :   110461173
 Email       :   yinlsu@cs.stonybrook.edu
 
 Author 2    :   Jiewen Zheng
-Student ID  :
-Email       :
+Student ID  :   110614508
+Email       :   jiezheng@cs.stonybrook.edu
 
 
 COMPILE AND RUN
@@ -269,4 +269,31 @@ This program is a UDP socket based file transfer services server and client.
         structure and terminate the child process correctly.
 
 
-2.  Client part (dgcli_impl.c)
+2.  Client part (udpclient.c dgcli_impl.c)
+
+    a.  Print and check network interface
+        i)  Client uses Get_ifi_info_plus (in get_ifi_into_plus.c) function to
+            get all interface information. This way is similar with server.
+            Reference more information in "Server part, chapter a".
+        ii) First, client checks loopback interface, if client and server is on
+            same host, they use loopback address "127.0.0.1" to communicate.
+            Second, client checks wether the server is on the same subnet. If
+            so set unicast IP address to IPserver.
+            Third, if client has multiple IP addresses, and the server isn't on
+            same host, client will random chooses an IP address to IPclient.
+            The implemented code is in function designateAddr().
+              				 
+    b.  Connect server with filename
+        The client first send a    
+		
+		
+    c.  Receive buffer and sliding Window
+		
+		
+    d.  Culmutive ACK
+    
+    
+    e.  EOF clean close
+    
+    
+    f.  Print thread
