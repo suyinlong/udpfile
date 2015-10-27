@@ -113,7 +113,7 @@ int RecvDataTimeout(int fd, void *data, int *size, int timeout, float p)
     sigfunc = Signal(SIGALRM, HandleRecvTimeout);
     alarm(timeout);
 
-    
+
     // read data
     if ((ret = read(fd, data, *size)) < 0)
     {
@@ -134,15 +134,13 @@ int RecvDataTimeout(int fd, void *data, int *size, int timeout, float p)
     // restore previous signal handler
     Signal(SIGALRM, sigfunc);
 #endif
-
-    Dg_readpacket(fd, data);
+read_data_again:
+    ret = Dg_readpacket(fd, data);
+    if (ret == -1 && errno == EINTR)
+        goto read_data_again;
     if (p > 0 && DgRandom() <= p)
-    {
         // discard the datagram
-        errno = EAGAIN;
-        ret = -1;
-    }
-
+        goto read_data_again;
     return ret;
 }
 
@@ -168,20 +166,20 @@ int SendDgSrvFilenameReq(dg_client *cli)
         {
             errno = 0;
             err_msg("[Client]: No response from server %s:%d, giving up", cli->arg->srvIP, cli->arg->srvPort);
-        }            
-        else 
+        }
+        else
         {
             errno = ETIMEDOUT;  // timeout, retransmitting
         }
         return -1;
     }
-    
+
     // if random() <= p, discard the datagram (just don't send)
     if (DgRandom() > cli->arg->p)
         Dg_writepacket(cli->sock, &sndData);
 
 read_port_reply_again:
-    
+
     bzero(&rcvData, sizeof(rcvData));
     Dg_readpacket(cli->sock, &rcvData);
     if (cli->arg->p > 0 && DgRandom() <= cli->arg->p)
@@ -223,7 +221,7 @@ int SendDgSrvNewPortAck(dg_client *cli, struct filedatagram *data)
     sndData.len = 0;
 
     bzero(data, sizeof(*data));
-    while (1) 
+    while (1)
     {
         // if random() <= p, discard the datagram (just don't send)
         if (DgRandom() > cli->arg->p)
@@ -445,13 +443,16 @@ int ConnectDgServer(dg_client *cli)
         // reconnect server with new port number
         ReconnectDgSrv(cli);
 
+        // create print out thread
+        CreateThread(cli);
+
         // send port ack
         ret = SendDgSrvNewPortAck(cli, &dg);
-        
+
     } while (ret < 0);
 
     printf("[Client]: Connect server %s:%d ok\n", cli->arg->srvIP, cli->newPort);
-    
+
     uint32_t ack = 0;
     // save first segment
     WriteDgRcvBuf(cli->buf, &dg, &ack);
@@ -511,9 +512,6 @@ int StartDgCli(dg_client *cli)
     if (ConnectDgServer(cli) < 0)
         return -1;
 
-    // create print out thread
-    CreateThread(cli);
-
     // set and start delayed ack timer
     if (SetDelayedAckTimer(cli))
         return -1;
@@ -528,7 +526,7 @@ int StartDgCli(dg_client *cli)
         // receive data
         ret = RecvDataTimeout(cli->sock, &dg, &sz, cli->timeout, cli->arg->p);
         if (ret < 0)
-        {
+        { printf("recvDataTimeout: %s\n", strerror(errno));
             if (errno == ETIMEDOUT || errno == EAGAIN)
                 continue;
             else
@@ -567,11 +565,11 @@ int StartDgCli(dg_client *cli)
         ret = WriteDgRcvBuf(cli->buf, &dg, &ack);
         switch (ret)
         {
-        case DGBUF_RWND_FULL:   // sliding window size is zero            
+        case DGBUF_RWND_FULL:   // sliding window size is zero
             SendDgSrvAck(cli, cli->buf->nextSeq, dg.ts, cli->buf->rwnd.win, 1, "rwnd size is 0");
             continue;
 
-        case DGBUF_SEGMENT_IN_BUF:      // segment is already in receive buffer 
+        case DGBUF_SEGMENT_IN_BUF:      // segment is already in receive buffer
         case DGBUF_SEGMENT_OUTOFRANGE:  // segment is out of range
             SendDgSrvAck(cli, cli->buf->nextSeq, dg.ts, cli->buf->rwnd.win, 0, "already-in or out-of-range");
             continue;
