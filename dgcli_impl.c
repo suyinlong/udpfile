@@ -305,8 +305,7 @@ void *PrintOutThread(void *arg)
 
     int size = 0;
     int ret = 0;
-    double d = 0.0;
-    struct timeval tv;
+    int d = 0;
     struct filedatagram fd;
 
     g_threadStop = 0;
@@ -319,10 +318,8 @@ void *PrintOutThread(void *arg)
         if (ret < 0)
         {
             // produce a random double in the range (0.0, 1.0)
-            d = ((rand() + 1) / (double)(RAND_MAX + 2));
-            tv.tv_sec = 0;
-            tv.tv_usec = -1 * cli->arg->u * log(d);  // -1 * u * ln(random())
-            select(0, NULL, NULL, NULL, &tv);
+            d = -1 * cli->arg->u * log(DgRandom()) * 1000;
+            usleep(d);
             continue;
         }
 
