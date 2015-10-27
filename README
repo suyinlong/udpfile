@@ -36,7 +36,7 @@ Run the programs:
     ./client            # run the client
     Option:
       -s  this option will disable function of printing seq and ack information 
-      -f  this option will disable function of printing file contents, you can use option   
+      -f  this option will disable function of printing file contents
 
 
 SYSTEM DOCUMENTATION
@@ -303,43 +303,43 @@ This program is a UDP socket based file transfer services server and client.
         window. Data structs of both receive sliding window and buffer are defined
         in dgbuffer.h (line: 103-125).
         
-   			typedef struct dg_sliding_wnd_t
-				{
-				    int  base;   // base window index
-				    int  top;    // top window index
-				    int  next;   // expected data index
-				    int  size;   // sliding window size
-				    int  win;    // remain window size
-				}dg_sliding_wnd;
+        typedef struct dg_sliding_wnd_t
+        {
+            int  base;   // base window index
+            int  top;    // top window index
+            int  next;   // expected data index
+            int  size;   // sliding window size
+            int  win;    // remain window size
+        }dg_sliding_wnd;
 
-				typedef struct dg_rcv_buf_t
-				{
-				    uint32_t        frameSize;      // buffer frame size
-				    uint32_t        firstSeq;       // first seq number
-				    uint32_t        nextSeq;        // expected seq number
-				    uint32_t        ts;             // ack's timestamp
-				    uint32_t        acked;          // last ack number
-				    pthread_mutex_t	mutex;          // mutex value
-				    dg_sliding_wnd  rwnd;           // receive sliding window
-				    struct filedatagram *buffer;    // buffer array, the size is frameSize
-				}dg_rcv_buf;
+        typedef struct dg_rcv_buf_t
+        {
+            uint32_t        frameSize;      // buffer frame size
+            uint32_t        firstSeq;       // first seq number
+            uint32_t        nextSeq;        // expected seq number
+            uint32_t        ts;             // ack's timestamp
+            uint32_t        acked;          // last ack number
+            pthread_mutex_t mutex;          // mutex value
+            dg_sliding_wnd  rwnd;           // receive sliding window
+            struct filedatagram *buffer;    // buffer array, the size is frameSize
+        }dg_rcv_buf;
 				
-				The realization of write mechanism:
-				The location of received datagram in reveive buffer is decided by index.
-				The formular to calculate index is as following:
-					index = seq % size.
-					- "seq" is the sequence number of current datagram
-					- "size" is the receive buffer size
-				The realization of write mechanism is through WriteDgRcvBuf()	function 
-				in dgbuffer.c.
+        The realization of write mechanism:
+        The location of received datagram in reveive buffer is decided by index.
+        The formular to calculate index is as following:
+            index = seq % size.
+            - "seq" is the sequence number of current datagram
+            - "size" is the receive buffer size
+        The realization of write mechanism is through WriteDgRcvBuf() function 
+        in dgbuffer.c.
 				
-				The realization of read mechanism:
-				There are two conditions needed,
-					- Two or more than two consecutive datagrams are in receive window
-					- Delayed ACK is timeout and at least one in-order datagram is in 
-					  receive window.
-				The realization of read mechanism is through ReadDgRcvBuf() function in
-				dgbuffer.c.						
+        The realization of read mechanism:
+        There are two conditions needed,
+        - Two or more than two consecutive datagrams are in receive window
+        - Delayed ACK is timeout and at least one in-order datagram is in 
+          receive window.
+        The realization of read mechanism is through ReadDgRcvBuf() function in
+	dgbuffer.c.						
     
     d.  Culmutive ACK mechanism
         First, activate the 500ms-period timer through SetDelayedAckTimer() 
@@ -349,8 +349,8 @@ This program is a UDP socket based file transfer services server and client.
         thread sends ACK through StartDgCli() function in main loop when any of 
         the following conditions meets:
         i)   Arrival of in-order segment with expected seq
-          	 - Delayed ack timer is timeout.
-           	 - One other segment has ACK pending.
+             - Delayed ack timer is timeout.
+             - One other segment has ACK pending.
         ii)  Arrival of out-of-order segment higher-than-expect seq
              - Send duplicate ACK, indicating seq of next expected segment.
         iii) Arrival of segment that partially or completely fills gap
@@ -362,20 +362,20 @@ This program is a UDP socket based file transfer services server and client.
         list. Data struct of FIFO is defined in dgbuffer.h (line: 24-41).        
         
         typedef struct dg_node_t
-				{
-				    int        size;        // data size
-				    char      *data;        // data
-				    struct dg_node_t *next; // next node
-				}dg_node;
+        {
+            int        size;        // data size
+            char      *data;        // data
+            struct dg_node_t *next; // next node
+        }dg_node;
 				
-				typedef struct dg_fifo_t
-				{
-				    int      size;         // fifo size
-				    int      curSize;      // current fifo size
-				    dg_node *head;         // head node
-				    dg_node *curData;      // current node
-				    pthread_mutex_t	mutex; // mutex value
-				}dg_fifo;
+        typedef struct dg_fifo_t
+        {
+            int      size;         // fifo size
+            int      curSize;      // current fifo size
+            dg_node *head;         // head node
+            dg_node *curData;      // current node
+            pthread_mutex_t	mutex; // mutex value
+        }dg_fifo;
 				        
         When main thread finds readable datagram in receive buffer, it writes 
         the datagram into FIFO. This mechanism is implemented through GetDatagram()
