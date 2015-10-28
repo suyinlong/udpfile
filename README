@@ -1,11 +1,11 @@
 AUTHORS INFORMATION
 ==================
 
-Author 1    :   Yinlong Su
+Author 1    :   Yinlong Su   [Server part]
 Student ID  :   110461173
 Email       :   yinlsu@cs.stonybrook.edu
 
-Author 2    :   Jiewen Zheng
+Author 2    :   Jiewen Zheng [Client part]
 Student ID  :   110614508
 Email       :   jiezheng@cs.stonybrook.edu
 
@@ -17,25 +17,27 @@ Make sure the library is in right location:
 
     libunp.a    /home/courses/cse533/Stevens/unpv13e_solaris2.10/libunp.a
 
-Unpack
+Unpack the file
 
-Execute the following from the directory to compile the source code:
+    tar -xvf ./udpfile.tar
+
+Execute the following from the directory 'udpfile' to compile the source code:
 
     make                # use "make" to compile the source
 
-Before running the programs, make sure the configuration files are in
-the same directory.
+Before running the programs, make sure the configuration files are in the same
+directory.
 
     server.in
     client.in
 
 Run the programs:
 
-    ./server &          # run the server in daemon mode
-    
+    ./server            # run the server
+
     ./client            # run the client
-    Option:
-      -s  this option will disable function of printing seq and ack information 
+    Client Option:
+      -s  this option will disable function of printing seq and ack information
       -f  this option will disable function of printing file contents
       -h  print the usage
 
@@ -49,10 +51,9 @@ This program is a UDP socket based file transfer services server and client.
 
     When starting the server, you can use the following command
 
-        ./server &
+        ./server
 
-    to initiate the server in daemon mode, in which the server will run as
-    a background process.
+    to initiate the server.
 
     a.  Binding unicast address
         The server uses Get_ifi_info_plus (in get_ifi_into_plus.c) function to
@@ -287,22 +288,22 @@ This program is a UDP socket based file transfer services server and client.
             Third, if client has multiple IP addresses, and the server isn't on
             same host, client will random chooses an IP address to IPclient.
             The implemented code is in function designateAddr().
-              				 
+
     b.  Connect server
-        Client creates a UDP socket and binds on IPclient, with 0 as the port 
-        number. Kernel binds an ephemeral port to the socket. First, client sends 
+        Client creates a UDP socket and binds on IPclient, with 0 as the port
+        number. Kernel binds an ephemeral port to the socket. First, client sends
         datagram with filename to the well known port of server. Second, client
-        waits for server's ACK for filename. The ACK includes the ephemeral port 
-        number of server. Third, client connects the ephemeral port number and 
+        waits for server's ACK for filename. The ACK includes the ephemeral port
+        number of server. Third, client connects the ephemeral port number and
         uses it for the subsequent communication. Client will go back to first
         step when timeout caused by loosing packets happens. This RTO mechanism
         is implemented in ConnectDgServer() (in dgcli_impl.c) function.
-           
-    c.  Receive buffer and sliding window        
-        Receive buffer is a circular array, and it's size is twice of sliding 
+
+    c.  Receive buffer and sliding window
+        Receive buffer is a circular array, and it's size is twice of sliding
         window. Data structs of both receive sliding window and buffer are defined
         in dgbuffer.h (line: 103-125).
-        
+
         typedef struct dg_sliding_wnd_t
         {
             int  base;   // base window index
@@ -323,30 +324,30 @@ This program is a UDP socket based file transfer services server and client.
             dg_sliding_wnd  rwnd;           // receive sliding window
             struct filedatagram *buffer;    // buffer array, the size is frameSize
         }dg_rcv_buf;
-				
+
         The realization of write mechanism:
         The location of received datagram in reveive buffer is decided by index.
         The formular to calculate index is as following:
             index = seq % size.
             - "seq" is the sequence number of current datagram
             - "size" is the receive buffer size
-        The realization of write mechanism is through WriteDgRcvBuf() function 
+        The realization of write mechanism is through WriteDgRcvBuf() function
         in dgbuffer.c.
-				
+
         The realization of read mechanism:
         There are two conditions needed,
         - Two or more than two consecutive datagrams are in receive window
-        - Delayed ACK is timeout and at least one in-order datagram is in 
+        - Delayed ACK is timeout and at least one in-order datagram is in
           receive window.
         The realization of read mechanism is through ReadDgRcvBuf() function in
-        dgbuffer.c.						
-    
+        dgbuffer.c.
+
     d.  Culmutive ACK mechanism
-        First, activate the 500ms-period timer through SetDelayedAckTimer() 
+        First, activate the 500ms-period timer through SetDelayedAckTimer()
         function in dgcli_impl.c.The timer checks if there is in-order data in
         receive buffer, then writes in-order data into FIFO. Second, main thread
-        reads the data from socket, then caches them in receive buffer. Main 
-        thread sends ACK through StartDgCli() function in main loop when any of 
+        reads the data from socket, then caches them in receive buffer. Main
+        thread sends ACK through StartDgCli() function in main loop when any of
         the following conditions meets:
         i)   Arrival of in-order segment with expected seq
              - Delayed ack timer is timeout.
@@ -354,20 +355,20 @@ This program is a UDP socket based file transfer services server and client.
         ii)  Arrival of out-of-order segment higher-than-expect seq
              - Send duplicate ACK, indicating seq of next expected segment.
         iii) Arrival of segment that partially or completely fills gap
-             - Send ACK, provided that segment starts at lower end of gap.          
-    
+             - Send ACK, provided that segment starts at lower end of gap.
+
     e.  Print thread
         Main thread and child thread communicate to each other using a thread-
-        safe FIFO(First In First Out) queue. Its implementation uses a linear 
-        list. Data struct of FIFO is defined in dgbuffer.h (line: 24-41).        
-        
+        safe FIFO(First In First Out) queue. Its implementation uses a linear
+        list. Data struct of FIFO is defined in dgbuffer.h (line: 24-41).
+
         typedef struct dg_node_t
         {
             int        size;        // data size
             char      *data;        // data
             struct dg_node_t *next; // next node
         }dg_node;
-				
+
         typedef struct dg_fifo_t
         {
             int      size;         // fifo size
@@ -376,17 +377,19 @@ This program is a UDP socket based file transfer services server and client.
             dg_node *curData;      // current node
             pthread_mutex_t	mutex; // mutex value
         }dg_fifo;
-				        
-        When main thread finds readable datagram in receive buffer, it writes 
+
+        When main thread finds readable datagram in receive buffer, it writes
         the datagram into FIFO. This mechanism is implemented through GetDatagram()
         function. Child thread reads FIFO list cyclically; prints data of datagram
         when it finds data in FIFO or sleepes for some time when finds no data in
         FIFO. This mechanism is implemented through PrintOutThread() function.
-				
+
     f.  Disconnect server and exit
         When child thread receives a datagram including EOF flag, it will quit
-        the cycle and set g_threadStop=1. Child thread exits. When main thread 
-        receives a datagram including EOF flag, it will activate a 30s timer 
-        to detect if print thread finishes all data. If yes, main thread will 
-        quit; if no, main thread will wait until print thread finished all 
-        datagram.
+        the cycle and set g_threadStop=1. Child thread exits. When main thread
+        receives a datagram including EOF flag, it will activate a 30s timer
+        to detect if print thread finishes all data. If yes, main thread will
+        quit; if no, main thread will wait until print thread finished all
+        datagrams. Also, the client will wait at most 60 seconds for a new
+        datagram. Thus preventing the client from hanging around after the
+        abort of server after 12 unsuccessful retries.

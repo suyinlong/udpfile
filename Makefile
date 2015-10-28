@@ -34,9 +34,6 @@ server: udpserver.o get_ifi_info_plus.o dgutils.o dgserv.o rtserv.o rtt.o
 
 # client
 
-dgcli.o: dgcli.c
-	${CC} ${CFLAGS} -c dgcli.c
-
 udpclient.o: udpclient.c
 	${CC} ${CFLAGS} -c udpclient.c
 
@@ -46,8 +43,8 @@ dgbuffer.o: dgbuffer.c
 dgcli_impl.o: dgcli_impl.c
 	${CC} ${CFLAGS} -c dgcli_impl.c
 
-client: udpclient.o get_ifi_info_plus.o dgutils.o dgcli.o dgbuffer.o dgcli_impl.o rtt.o
-	${CC} ${FLAGS} -o client udpclient.o get_ifi_info_plus.o dgutils.o dgcli.o dgbuffer.o dgcli_impl.o rtt.o ${LIBS}
+client: udpclient.o get_ifi_info_plus.o dgutils.o dgbuffer.o dgcli_impl.o rtt.o
+	${CC} ${FLAGS} -o client udpclient.o get_ifi_info_plus.o dgutils.o dgbuffer.o dgcli_impl.o rtt.o ${LIBS}
 
 clean:
 	rm -f server client *.o

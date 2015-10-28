@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-13 10:01:16
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-27 21:05:58
+* @Last Modified time: 2015-10-27 21:49:34
 *
 * File:         rtserv.c
 * Description:  Reliable Transmission Server C file
@@ -185,6 +185,7 @@ uint16_t cc_wnd() {
  *            uint16_t  wnd         # advertised receiver window size
  *            uint8_t   flag        # 1 if this ACK is a window update datagram
  *            uint8_t   *fr_flag    # fast retransmit flag (1=retransmit)
+ *            uint32_t  *dup_ack    # number of duplicate ack
  *  @return : uint16_t  # the number of datagrams that can be sent
  *
  *  Congestion Control Acknowledgements Handler
@@ -220,6 +221,10 @@ uint16_t cc_ack(uint32_t seq, uint16_t wnd, uint8_t flag, uint8_t *fr_flag) {
         dup_c = 0;
     if (flag == 1)
         dup_c = 0;
+
+    if (dup_c > 0)
+        printf(" <DUP%2d>", dup_c);
+    printf("\n");
 
     //printf("[Server Child #%d]: CC ACK. (ACK = %d, awnd = %d, dup_c = %d, wnd=%d)\n", pid, seq, wnd, dup_c, flag);
 
