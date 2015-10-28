@@ -302,8 +302,8 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data, int print, u
 
     if (print)
     {
-        printf("[Client]: Receive datagram #%d [seq=%d ack=%d ts=%d] flag[eof=%d pob=%d] rwnd=%d\n",
-            data->seq, data->seq, data->ack, data->ts,
+        printf("[Client]: Receive datagram #%d [seq=%d ts=%d] flag[eof=%d pob=%d] rwnd=%d\n",
+            data->seq, data->seq, data->ts,
             data->flag.eof, data->flag.pob, rwnd->win);
     }
 
@@ -359,7 +359,7 @@ int ReadDgRcvBuf(dg_rcv_buf *buf, struct filedatagram *data, int need)
         buf->rwnd.win++;
 
 #ifdef DEBUG_BUFFER
-        printf("[RcvBuf]: Read buffer, seq=%d ack=%d ts=%d win=%d\n", data->seq, data->ack, data->ts, buf->rwnd.win);
+        printf("[RcvBuf]: Read buffer, seq=%d ts=%d win=%d\n", data->seq, data->ts, buf->rwnd.win);
 #endif
 
         // unlock

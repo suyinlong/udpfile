@@ -106,7 +106,7 @@ void ReconnectDgSrv(dg_client *cli)
 }
 
 // receive data with timer
-int RecvDataTimeout(int fd, void *data, int *size, int timeout, float p)
+int RecvDataTimeout(int fd, struct filedatagram *data, int *size, int timeout, float p)
 {
     int	ret = 0;
 
@@ -117,7 +117,7 @@ read_data_again:
 
     if (p > 0 && DgRandom() <= p) {
         // discard the datagram
-        printf("[Client]: A received datagram is <DROPPED>\n");
+        printf("[Client]: Receive datagram #%d <DROPPED>\n", data->seq);
         goto read_data_again;
     }
 
@@ -169,7 +169,7 @@ read_port_reply_again:
     {
         // discard the datagram
         if (rcvData.flag.pot == 1)
-            printf("[Client]: A port number datagram is <DROPPED>\n");
+            printf("[Client]: Received a valid private port number %s from server. <DROPPED>\n", rcvData.data);
         goto read_port_reply_again;
     }
 
@@ -209,7 +209,7 @@ int SendDgSrvNewPortAck(dg_client *cli, struct filedatagram *data)
     bzero(data, sizeof(*data));
     while (1)
     {
-        printf("[Client]: Send port ACK");
+        printf("[Client]: Send port ACK to server via new port");
         // if random() <= p, discard the datagram (just don't send)
         if (DgRandom() > cli->arg->p)
             Dg_writepacket(cli->sock, &sndData);
@@ -222,7 +222,11 @@ int SendDgSrvNewPortAck(dg_client *cli, struct filedatagram *data)
         if (cli->arg->p > 0 && DgRandom() <= cli->arg->p)
         {
             // discard the datagram
-            printf("[Client]: A received datagram is <DROPPED>\n");
+            printf("[Client]: Receive datagram #%d with ", data->seq);
+            if (data->flag.pot == 1)
+                printf("port number %s. <DROPPED>\n", data->data);
+            else
+                printf("file content. <DROPPED>\n");
             goto read_port_again;
         }
 
