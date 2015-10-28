@@ -113,7 +113,7 @@ int RecvDataTimeout(dg_client *cli, struct filedatagram *data, int *size)
 read_data_again:
     ret = Dg_readpacket(cli->sock, data);
     if (ret == -1 && (errno == EINTR || errno == ECONNREFUSED))
-        goto read_data_again;    
+        goto read_data_again;
 
     *size = ret;
 
@@ -553,12 +553,6 @@ int StartDgCli(dg_client *cli)
             continue;
         }
 
-        // received eof
-        if (dg.flag.eof == 1)
-        {
-            HandleDgClientFin(cli);
-        }
-
         int ret = 0;
         uint32_t ack = 0, ts = 0;
         // put data to receive buffer
@@ -572,7 +566,7 @@ int StartDgCli(dg_client *cli)
         case DGBUF_SEGMENT_IN_BUF:      // segment is already in receive buffer
             SendDgSrvAck(cli, cli->buf->nextSeq, dg.ts, cli->buf->rwnd.win, 0, "already-in buffer");
             continue;
-        
+
         case DGBUF_SEGMENT_OUTOFRANGE:  // segment is out of range
             SendDgSrvAck(cli, cli->buf->nextSeq, dg.ts, cli->buf->rwnd.win, 0, "out-of-range");
             continue;
@@ -587,6 +581,12 @@ int StartDgCli(dg_client *cli)
         if (GetInOrderAck(cli->buf, &ack, &ts) == 0)
         {
             SendDgSrvAck(cli, ack, ts, cli->buf->rwnd.win, 0, "in-order");
+        }
+
+                // received eof
+        if (dg.flag.eof == 1 && dg.seq +1 == cli->buf->nextSeq)
+        {
+            HandleDgClientFin(cli);
         }
     }
 
