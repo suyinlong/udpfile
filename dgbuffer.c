@@ -49,7 +49,7 @@ void DestroyDgFifo(dg_fifo *fifo)
 
     // free dg_fifo object
     free(fifo);
-    fifo = NULL;   
+    fifo = NULL;
 }
 
 void DgLock(pthread_mutex_t mutex)
@@ -89,13 +89,13 @@ int WriteDgFifo(dg_fifo *fifo, const void *data, int dataSize)
     }
     else
     {
-        fifo->curData->next = node;    
+        fifo->curData->next = node;
         fifo->curData = fifo->curData->next;
         fifo->curData->next = NULL;
     }
 
     fifo->curSize++;
-    
+
     // unlock
     DgUnlock(fifo->mutex);
 
@@ -106,9 +106,9 @@ int ReadDgFifo(dg_fifo *fifo, void *data, int *dataSize)
 {
     if (fifo->curSize == 0 ||   // fifo is empty
         data == NULL)           // data is invalid
-    {   
+    {
         return -1;
-    }        
+    }
 
     // lock
     DgLock(fifo->mutex);
@@ -128,7 +128,7 @@ int ReadDgFifo(dg_fifo *fifo, void *data, int *dataSize)
 
     // unlock
     DgUnlock(fifo->mutex);
-    
+
     return fifo->curSize;
 }
 
@@ -163,7 +163,7 @@ dg_rcv_buf *CreateDgRcvBuf(int wndSize)
     int size = buf->frameSize * sizeof(struct filedatagram);
     buf->buffer = malloc(size);
     memset(buf->buffer, 0, size);
-    
+
     // initial sliding window index
     buf->rwnd.base = 0;
     buf->rwnd.next = 0;
@@ -205,8 +205,8 @@ int CheckSeqRange(dg_rcv_buf *buf, uint32_t idx)
     if (top > next)
     {
         if (idx > top ||  // out of window size
-            idx < next)    // less than expect segment seq        
-            return -1;        
+            idx < next)    // less than expect segment seq
+            return -1;
     }
     else
     {
@@ -226,14 +226,14 @@ int CheckSeqRange(dg_rcv_buf *buf, uint32_t idx)
         printf("[Client]: Window index=%d out of range[%d, %d]\n", idx, next, top);
         return -1;
     }
-    */    
+    */
 
     return 0;
 }
 
 int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data, int print, uint32_t *ack)
 {
-    // check sliding window 
+    // check sliding window
     if (buf->rwnd.win == 0)
     {
         // sliding window is full
@@ -250,7 +250,7 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data, int print, u
             printf("[Client]: Receive datagram #%d, seq=%d, is already in buffer\n", data->seq, data->seq);
         return DGBUF_SEGMENT_IN_BUF;
     }
-    
+
     // lock
     DgLock(buf->mutex);
 
@@ -283,7 +283,7 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data, int print, u
                 // in-order
                 // expected seq number
                 buf->nextSeq++;
-                buf->ts = data->ts;   // store current timestamp 
+                buf->ts = data->ts;   // store current timestamp
                 rwnd->next = (buf->rwnd.next + 1) % buf->frameSize;
 
             } while(buf->buffer[rwnd->next].seq != 0);  // check next frame
@@ -302,14 +302,14 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data, int print, u
 
     if (print)
     {
-        printf("[Client #%d]: Receive datagram #%d [seq=%d ack=%d ts=%d] flag[eof=%d pob=%d] rwnd=%d\n",
-            pthread_self(), data->seq, data->seq, data->ack, data->ts,
+        printf("[Client]: Receive datagram #%d [seq=%d ack=%d ts=%d] flag[eof=%d pob=%d] rwnd=%d\n",
+            data->seq, data->seq, data->ack, data->ts,
             data->flag.eof, data->flag.pob, rwnd->win);
-    }        
+    }
 
     // unlock
     DgUnlock(buf->mutex);
- 
+
     return ret;
 }
 
@@ -351,7 +351,7 @@ int ReadDgRcvBuf(dg_rcv_buf *buf, struct filedatagram *data, int need)
     {
         int idx = buf->rwnd.base;
         memcpy(data, &buf->buffer[idx], sizeof(struct filedatagram));
-        memset(&buf->buffer[idx], 0, sizeof(struct filedatagram));        
+        memset(&buf->buffer[idx], 0, sizeof(struct filedatagram));
 
         // slide window to right
         buf->rwnd.base = (buf->rwnd.base + 1) % buf->frameSize;
@@ -361,7 +361,7 @@ int ReadDgRcvBuf(dg_rcv_buf *buf, struct filedatagram *data, int need)
 #ifdef DEBUG_BUFFER
         printf("[RcvBuf]: Read buffer, seq=%d ack=%d ts=%d win=%d\n", data->seq, data->ack, data->ts, buf->rwnd.win);
 #endif
-        
+
         // unlock
         DgUnlock(buf->mutex);
         return --inOrderPkt;
@@ -369,8 +369,8 @@ int ReadDgRcvBuf(dg_rcv_buf *buf, struct filedatagram *data, int need)
 
     // unlock
     DgUnlock(buf->mutex);
-    
-    return -1;    
+
+    return -1;
 }
 
 
@@ -390,12 +390,12 @@ int GetInOrderAck(dg_rcv_buf *buf, uint32_t *ack, uint32_t *ts)
     *ts = 0;
     if (inOrderPkt > 1)
     {
-        // get last received segment 
+        // get last received segment
         int idx = buf->rwnd.next - 1;
         if (buf->rwnd.next == 0)
             idx = buf->frameSize - 1;
-        
-        // last received segment seq - acked seq >= 2, 
+
+        // last received segment seq - acked seq >= 2,
         // then send a ack to server
         if (buf->buffer[idx].seq - buf->acked < 1)
         {
@@ -405,7 +405,7 @@ int GetInOrderAck(dg_rcv_buf *buf, uint32_t *ack, uint32_t *ts)
 
         *ack = buf->buffer[idx].seq+1;
         *ts = buf->buffer[idx].ts;
-        
+
         DgUnlock(buf->mutex);
         return 0;
     }

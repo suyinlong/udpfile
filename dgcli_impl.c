@@ -115,10 +115,12 @@ read_data_again:
     if (ret == -1 && (errno == EINTR || errno == ECONNREFUSED))
         goto read_data_again;
 
-    if (p > 0 && DgRandom() <= p)
+    if (p > 0 && DgRandom() <= p) {
         // discard the datagram
+        printf("[Client]: A received datagram is <DROPPED>\n");
         goto read_data_again;
-    
+    }
+
     return ret;
 }
 
@@ -144,17 +146,20 @@ int SendDgSrvFilenameReq(dg_client *cli)
         {
             errno = 0;
             err_msg("[Client]: No response from server %s:%d, giving up", cli->arg->srvIP, cli->arg->srvPort);
+            return -1;
         }
-        else
-        {
-            errno = ETIMEDOUT;  // timeout, retransmitting
-        }
-        return -1;
+        SetRTTTimer(rtt_start(&cli->rtt));
     }
 
+    printf("[Client]: Send filename to server %s:%d", cli->arg->srvIP, cli->arg->srvPort, cli->rtt.rtt_nrexmt);
+    if (cli->rtt.rtt_nrexmt > 0)
+        printf(" (Timeout #%2d)", cli->rtt.rtt_nrexmt);
     // if random() <= p, discard the datagram (just don't send)
     if (DgRandom() > cli->arg->p)
         Dg_writepacket(cli->sock, &sndData);
+    else
+        printf(" <DROPPED>");
+    printf("\n");
 
 read_port_reply_again:
 
@@ -163,8 +168,11 @@ read_port_reply_again:
     if (cli->arg->p > 0 && DgRandom() <= cli->arg->p)
     {
         // discard the datagram
+        if (rcvData.flag.pot == 1)
+            printf("[Client]: A port number datagram is <DROPPED>\n");
         goto read_port_reply_again;
     }
+
 
     // stop rtt timer
     SetRTTTimer(0);
@@ -201,15 +209,20 @@ int SendDgSrvNewPortAck(dg_client *cli, struct filedatagram *data)
     bzero(data, sizeof(*data));
     while (1)
     {
+        printf("[Client]: Send port ACK");
         // if random() <= p, discard the datagram (just don't send)
         if (DgRandom() > cli->arg->p)
             Dg_writepacket(cli->sock, &sndData);
+        else
+            printf(" <DROPPED>");
+        printf("\n");
 
     read_port_again:
         Dg_readpacket(cli->sock, data);
         if (cli->arg->p > 0 && DgRandom() <= cli->arg->p)
         {
             // discard the datagram
+            printf("[Client]: A received datagram is <DROPPED>\n");
             goto read_port_again;
         }
 
@@ -235,12 +248,16 @@ void SendDgSrvAck(dg_client *cli, uint32_t ack, uint32_t ts, int wnd, int wndFla
     dg.len = 0;
     cli->buf->acked = ack;
 
+    if (cli->printSeq)
+        printf("[Client]: Send ACK #%d [ack=%d seq=%d ts=%d win=%d flag.wnd=%d] (%s)",
+            dg.ack, dg.ack, dg.seq, dg.ts, dg.wnd, dg.flag.wnd, tag);
     if (DgRandom() > cli->arg->p)
         Dg_writepacket(cli->sock, &dg);
+    else if (cli->printSeq)
+        printf(" <DROPPED>");
 
     if (cli->printSeq)
-        printf("[Client #%d]: Send ACK #%d [ack=%d seq=%d ts=%d win=%d flag.wnd=%d] (%s)\n",
-            pthread_self(), dg.ack, dg.ack, dg.seq, dg.ts, dg.wnd, dg.flag.wnd, tag);
+        printf("\n");
 }
 
 // handle client to finish work
@@ -312,7 +329,7 @@ void *PrintOutThread(void *arg)
 
         if (fd.flag.eof == 1)
         {
-            printf("[Thread #%d]: File data finished\n", pthread_self());
+            printf("[Client Print]: File data finished\n");
             break;
         }
     }
@@ -406,11 +423,6 @@ int ConnectDgServer(dg_client *cli)
         ret = SendDgSrvFilenameReq(cli);
         if (ret < 0)
         {
-            if (errno == ETIMEDOUT)
-            {
-                printf("[Client]: Send filename to server %s:%d error #%d: %s\n", cli->arg->srvIP, cli->arg->srvPort, cli->rtt.rtt_nrexmt, strerror(errno));
-                continue;
-            }
 
             printf("[Client]: Connect server %s:%d error\n", cli->arg->srvIP, cli->arg->srvPort);
             return -1;
