@@ -112,8 +112,8 @@ int RecvDataTimeout(dg_client *cli, struct filedatagram *data, int *size)
 
 read_data_again:
     ret = Dg_readpacket(cli->sock, data);
-    if (ret == -1 && (errno == EINTR || errno == ECONNREFUSED))
-        goto read_data_again;    
+    if (ret == -1 && (errno == EINTR || errno == ECONNREFUSED))      
+        goto read_data_again;  
 
     *size = ret;
 

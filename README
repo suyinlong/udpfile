@@ -354,7 +354,7 @@ This program is a UDP socket based file transfer services server and client.
         ii)  Arrival of out-of-order segment higher-than-expect seq
              - Send duplicate ACK, indicating seq of next expected segment.
         iii) Arrival of segment that partially or completely fills gap
-             - Send ACK, provided that segment starts at lower end of gap.    
+             - Send ACK, provided that segment starts at lower end of gap.          
     
     e.  Print thread
         Main thread and child thread communicate to each other using a thread-
