@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-27 12:57:55
+* @Last Modified time: 2015-10-27 21:48:38
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -266,7 +266,6 @@ uint32_t Dg_serv_ack(int sockfd) {
             printf(", rtt = %d", rtt_ts(&rttinfo) - FD.ts);
             rtt_stop(&rttinfo, rtt_ts(&rttinfo) - FD.ts);
         }
-        printf("\n");
 
         cc_ack(FD.ack, FD.wnd, FD.flag.wnd, &fr_flag);
 

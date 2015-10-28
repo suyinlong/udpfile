@@ -298,8 +298,7 @@ This program is a UDP socket based file transfer services server and client.
         step when timeout caused by loosing packets happens. This RTO mechanism
         is implemented in ConnectDgServer() (in dgcli_impl.c) function.
            
-    c.  Receive buffer and sliding window
-        
+    c.  Receive buffer and sliding window        
         Receive buffer is a circular array, and it's size is twice of sliding 
         window. Data structs of both receive sliding window and buffer are defined
         in dgbuffer.h (line: 103-125).
@@ -340,7 +339,7 @@ This program is a UDP socket based file transfer services server and client.
         - Delayed ACK is timeout and at least one in-order datagram is in 
           receive window.
         The realization of read mechanism is through ReadDgRcvBuf() function in
-	dgbuffer.c.						
+        dgbuffer.c.						
     
     d.  Culmutive ACK mechanism
         First, activate the 500ms-period timer through SetDelayedAckTimer() 
