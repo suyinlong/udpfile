@@ -2,7 +2,7 @@
 * @Author: Yinlong Su
 * @Date:   2015-10-11 14:26:14
 * @Last Modified by:   Yinlong Su
-* @Last Modified time: 2015-10-27 21:48:38
+* @Last Modified time: 2015-10-27 22:27:08
 *
 * File:         dgserv.c
 * Description:  Datagram Server C file
@@ -402,7 +402,7 @@ int Dg_serv_file(int sockfd, char *filename, int max_winsize, int rwnd) {
 
     while (1) {
         alarm_set = 0;
-        min_seq = 2^32-1;
+        min_seq = 0xFFFFFFFF;
         max_seq = 0;
         max_sendsize = cc_wnd();
 
