@@ -247,7 +247,7 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data, int print, u
     if (buf->firstSeq > 0 && buf->buffer[idx].seq == data->seq)
     {
         if (print)
-            printf("[Client]: Receive datagram #%d, seq=%d, is already in buffer\n", data->seq, data->seq);
+            printf("[Client]: Receive datagram #%d, is already in buffer\n", data->seq);
         return DGBUF_SEGMENT_IN_BUF;
     }
 
@@ -270,8 +270,8 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data, int print, u
         if (CheckSeqRange(buf, idx) < 0)
         {
             if (print)
-                printf("[Client]: Receive datagram #%d, seq=%d idx=%d, is out of range, rwin[%d, %d] next=%d win=%d\n",
-                    data->seq, data->seq, idx, buf->rwnd.base, buf->rwnd.top, buf->rwnd.next, buf->rwnd.win);
+                printf("[Client]: Receive datagram #%d, idx = %d, is out of range, rwin [%d, %d] next = %d win = %d\n",
+                    data->seq, idx, buf->rwnd.base, buf->rwnd.top, buf->rwnd.next, buf->rwnd.win);
             DgUnlock(buf->mutex);
             return DGBUF_SEGMENT_OUTOFRANGE;
         }
@@ -363,7 +363,7 @@ int ReadDgRcvBuf(dg_rcv_buf *buf, struct filedatagram *data, int need)
         buf->rwnd.win++;
 
 #ifdef DEBUG_BUFFER
-        printf("[RcvBuf]: Read buffer, seq=%d ts=%d win=%d\n", data->seq, data->ts, buf->rwnd.win);
+        printf("[RcvBuf]: Read buffer, seq = %d ts = %d win = %d\n", data->seq, data->ts, buf->rwnd.win);
 #endif
 
         // unlock

@@ -351,7 +351,7 @@ void CreateThread(dg_client *cli)
     pthread_t tid;
     Pthread_create(&tid, NULL, &PrintOutThread, cli);
 
-    printf("[Client]: Create thread ok, tid=%d\n", tid);
+    printf("[Client]: Create thread ok, tid = %d\n", tid);
 }
 
 // set rtt timer
