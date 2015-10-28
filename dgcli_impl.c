@@ -109,33 +109,6 @@ void ReconnectDgSrv(dg_client *cli)
 int RecvDataTimeout(int fd, void *data, int *size, int timeout, float p)
 {
     int	ret = 0;
-#if 0
-    Sigfunc *sigfunc;
-    // set alarm
-    sigfunc = Signal(SIGALRM, HandleRecvTimeout);
-    alarm(timeout);
-
-
-    // read data
-    if ((ret = read(fd, data, *size)) < 0)
-    {
-        if (errno == EINTR)
-            errno = ETIMEDOUT;
-    }
-
-    if (p > 0 && DgRandom() <= p)
-    {
-        // discard the datagram
-        errno = EAGAIN;
-        ret = -1;
-    }
-
-
-    // turn off the alarm
-    alarm(0);
-    // restore previous signal handler
-    Signal(SIGALRM, sigfunc);
-#endif
 
 read_data_again:
     ret = Dg_readpacket(fd, data);

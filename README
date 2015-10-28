@@ -37,6 +37,7 @@ Run the programs:
     Option:
       -s  this option will disable function of printing seq and ack information 
       -f  this option will disable function of printing file contents
+      -h  print the usage
 
 
 SYSTEM DOCUMENTATION
