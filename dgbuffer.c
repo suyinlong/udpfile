@@ -302,9 +302,13 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data, int print, u
 
     if (print)
     {
-        printf("[Client]: Receive datagram #%d [seq=%d ts=%d] flag[eof=%d pob=%d] rwnd=%d\n",
-            data->seq, data->seq, data->ts,
-            data->flag.eof, data->flag.pob, rwnd->win);
+        printf("[Client]: Receive datagram #%d (ts = %d, rwnd = %d)",
+            data->seq, data->ts, rwnd->win);
+        if (data->flag.eof == 1)
+            printf(" <EOF>");
+        if (data->flag.pob == 1)
+            printf(" <POB>");
+        printf("\n");
     }
 
     // unlock

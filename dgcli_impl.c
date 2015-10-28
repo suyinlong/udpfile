@@ -252,14 +252,17 @@ void SendDgSrvAck(dg_client *cli, uint32_t ack, uint32_t ts, int wnd, int wndFla
     dg.len = 0;
     cli->buf->acked = ack;
 
-    if (cli->printSeq)
-        printf("[Client]: Send ACK #%d [ack=%d seq=%d ts=%d win=%d flag.wnd=%d] (%s)",
-            dg.ack, dg.ack, dg.seq, dg.ts, dg.wnd, dg.flag.wnd, tag);
+    if (cli->printSeq) {
+        printf("[Client]: Send ACK #%d (ack = %d, ts = %d, wnd = %d)",
+            dg.ack, dg.ack, dg.ts, dg.wnd, tag);
+        if (dg.flag.wnd == 1)
+            printf(" <WND>");
+        printf(" (%s)", tag);
+    }
     if (DgRandom() > cli->arg->p)
         Dg_writepacket(cli->sock, &dg);
     else if (cli->printSeq)
         printf(" <DROPPED>");
-
     if (cli->printSeq)
         printf("\n");
 }
