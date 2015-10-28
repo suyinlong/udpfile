@@ -106,16 +106,36 @@ void ReconnectDgSrv(dg_client *cli)
 }
 
 // receive data with timer
-int RecvDataTimeout(int fd, void *data, int *size, int timeout, float p)
+int RecvDataTimeout(dg_client *cli, void *data, int *size)
 {
     int	ret = 0;
+    int retry = RTT_MAXNREXMT;
+
+#if 0
+    rtt_init(&cli->rtt);
+    rtt_newpack(&cli->rtt);
+#endif
 
 read_data_again:
-    ret = Dg_readpacket(fd, data);
+    ret = Dg_readpacket(cli->sock, data);
     if (ret == -1 && (errno == EINTR || errno == ECONNREFUSED))
-        goto read_data_again;
+    {
+#if 0
+        usleep(3 * rtt_start(&cli->rtt) * 1000);        
+        if (rtt_timeout(&cli->rtt) < 0)
+        {
+            rtt_stop(&cli->rtt, rtt_ts(&cli->rtt));
+            err_msg("[Client]: Read datagram from socket error, giving up\n");
+            return -1;
+        }
+#endif
 
-    if (p > 0 && DgRandom() <= p)
+        goto read_data_again;
+    }
+
+    *size = ret;
+
+    if (cli->arg->p > 0 && DgRandom() <= cli->arg->p)
         // discard the datagram
         goto read_data_again;
     
@@ -269,7 +289,7 @@ void HandleDgClientFin(dg_client *cli)
     }
 
     if (cli->printSeq)
-        printf("[Client]: Wait timer to clean close\n");
+        printf("[Client]: Wait timer(%ds) to clean close\n", FIN_TIMEWAIT);
 }
 
 //  print file content thread
@@ -503,7 +523,7 @@ int StartDgCli(dg_client *cli)
     {
         bzero(&dg, sizeof(dg));
         // receive data
-        ret = RecvDataTimeout(cli->sock, &dg, &sz, cli->timeout, cli->arg->p);
+        ret = RecvDataTimeout(cli, &dg, &sz);
         if (ret < 0)
         {
             if (errno == ETIMEDOUT || errno == EAGAIN)
@@ -549,8 +569,11 @@ int StartDgCli(dg_client *cli)
             continue;
 
         case DGBUF_SEGMENT_IN_BUF:      // segment is already in receive buffer
+            SendDgSrvAck(cli, cli->buf->nextSeq, dg.ts, cli->buf->rwnd.win, 0, "already-in buffer");
+            continue;
+        
         case DGBUF_SEGMENT_OUTOFRANGE:  // segment is out of range
-            SendDgSrvAck(cli, cli->buf->nextSeq, dg.ts, cli->buf->rwnd.win, 0, "already-in or out-of-range");
+            SendDgSrvAck(cli, cli->buf->nextSeq, dg.ts, cli->buf->rwnd.win, 0, "out-of-range");
             continue;
 
         case DGBUF_SEGMENT_OUTOFORDER:  // out of order, send duplicate ack

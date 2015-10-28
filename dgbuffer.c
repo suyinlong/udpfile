@@ -214,20 +214,6 @@ int CheckSeqRange(dg_rcv_buf *buf, uint32_t idx)
             return -1;
     }
 
-    /*
-    if (buf->rwnd.base >= buf->rwnd.top)
-        top = buf->rwnd.top + buf->frameSize;
-    if (buf->rwnd.base > buf->rwnd.next)
-        next = buf->rwnd.next + buf->frameSize;
-    if (idx > top ||  // out of window size
-        idx < next)    // less than expect segment seq
-    {
-        // out of range, can't save in buffer
-        printf("[Client]: Window index=%d out of range[%d, %d]\n", idx, next, top);
-        return -1;
-    }
-    */    
-
     return 0;
 }
 
@@ -237,7 +223,7 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data, int print, u
     if (buf->rwnd.win == 0)
     {
         // sliding window is full
-        printf("[Client]: Receive datagram #%d error: sliding window is full\n", data->seq);
+        printf("[Client #%d]: Receive datagram #%d error: sliding window is full\n", pthread_self(), data->seq);
         return DGBUF_RWND_FULL;
     }
 
@@ -247,7 +233,7 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data, int print, u
     if (buf->firstSeq > 0 && buf->buffer[idx].seq == data->seq)
     {
         if (print)
-            printf("[Client]: Receive datagram #%d, seq=%d, is already in buffer\n", data->seq, data->seq);
+            printf("[Client #%d]: Receive datagram #%d, seq=%d, is already in buffer\n", pthread_self(), data->seq, data->seq);
         return DGBUF_SEGMENT_IN_BUF;
     }
     
@@ -270,8 +256,8 @@ int WriteDgRcvBuf(dg_rcv_buf *buf, const struct filedatagram *data, int print, u
         if (CheckSeqRange(buf, idx) < 0)
         {
             if (print)
-                printf("[Client]: Receive datagram #%d, seq=%d idx=%d, is out of range, rwin[%d, %d] next=%d win=%d\n",
-                    data->seq, data->seq, idx, buf->rwnd.base, buf->rwnd.top, buf->rwnd.next, buf->rwnd.win);
+                printf("[Client #%d]: Receive datagram #%d, seq=%d idx=%d, is out of range, rwin[%d, %d] next=%d win=%d\n", \
+                    pthread_self(), data->seq, data->seq, idx, buf->rwnd.base, buf->rwnd.top, buf->rwnd.next, buf->rwnd.win);
             DgUnlock(buf->mutex);
             return DGBUF_SEGMENT_OUTOFRANGE;
         }
